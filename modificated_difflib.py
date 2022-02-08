@@ -479,24 +479,59 @@ class SequenceMatcher:
         # ('queue`) of blocks we still need to look at, and append partial
         # results to `matching_blocks` in a loop; the matches are sorted
         # at the end.
-        queue = [(0, la, 0, lb)]
+        queue = [{'ll': (0, la, 0, lb)}]
         matching_blocks = []
         while queue:
-            alo, ahi, blo, bhi = queue.pop()
-            i, j, k = x = self.find_longest_match(alo, ahi, blo, bhi)
-            # a[alo:i] vs b[blo:j] unknown
-            # a[i:i+k] same as b[j:j+k]
-            # a[i+k:ahi] vs b[j+k:bhi] unknown
-            if k:   # if k is 0, there was no matching block
-                matching_blocks.append(x)
-                if alo < i and blo < j:
-                    queue.append((alo, i, blo, j))
-                if i+k < ahi and j+k < bhi:
-                    queue.append((i+k, ahi, j+k, bhi))
-                if alo < i and j+k < bhi:
-                    queue.append((alo, i, j+k, bhi))
-                if i+k < ahi and blo < j:
-                    queue.append((i+k, ahi, blo, j))
+            blocks_dict = queue.pop()
+            match_dict = {}
+            longest_match_type = None
+            max_match_len = -1
+            final_matches = set()
+
+            # MM: the algorithm: after finding the longest match, divide
+            # the block to two parts - before the match and after it, and
+            # find the longest match between all the four options: ll, lh, hl and hh.
+            # The problem is that actually it doesn't search all the options,
+            # because the crosses is done only in the sides of the last match,
+            # andnot to the other side of the previous ones!
+            for match_type, (alo, ahi, blo, bhi) in blocks_dict.items():
+                i, j, k = match_dict[match_type] = self.find_longest_match(alo, ahi, blo, bhi)
+                if k > max_match_len:
+                    max_match_len = k
+                    longest_match_type = match_type
+
+            if max_match_len > 0:
+                if longest_match_type in ['ll', 'hh']:
+                    if (ll := match_dict.get('ll')) and ll[2] > 0:
+                        matching_blocks.append(match_dict['ll'])
+                        final_matches.add('ll')
+                    if (hh := match_dict.get('hh')) and hh[2] > 0:
+                        matching_blocks.append(match_dict['hh'])
+                        final_matches.add('hh')
+                elif max_match_len > 0:
+                    matching_blocks.append(match_dict[longest_match_type])
+                    final_matches.add(longest_match_type)
+
+                # i, j, k = x = self.find_longest_match(alo, ahi, blo, bhi)
+                # a[alo:i] vs b[blo:j] unknown
+                # a[i:i+k] same as b[j:j+k]
+                # a[i+k:ahi] vs b[j+k:bhi] unknown
+                # if k:   # if k is 0, there was no matching block
+                #     matching_blocks.append(x)
+                for match in final_matches:
+                    alo, ahi, blo, bhi = blocks_dict[match]
+                    i, j, k = match_dict[match]
+
+                    blocks_after_match = {}
+                    if alo < i and blo < j:
+                        blocks_after_match['ll'] = (alo, i, blo, j)
+                    if i+k < ahi and j+k < bhi:
+                        blocks_after_match['hh'] = (i+k, ahi, j+k, bhi)
+                    if alo < i and j+k < bhi:
+                        blocks_after_match['lh'] = (alo, i, j+k, bhi)
+                    if i+k < ahi and blo < j:
+                        blocks_after_match['hl'] = (i+k, ahi, blo, j)
+                    queue.append(blocks_after_match)
         matching_blocks.sort()
 
         # It's possible that we have adjacent equal blocks in the

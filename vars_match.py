@@ -23,7 +23,7 @@ class SubSequencesMatcher:
     A = 0
     B = 1
     AB = 2
-    SS_SEPARATORS = ['-', '+']
+    SS_SEPARATORS = [['-'], ['+']]
 
     def __init__(self, sequence_a, sequence_b, isjunk=None):
         self.isjunk = isjunk
@@ -45,7 +45,7 @@ class SubSequencesMatcher:
                 i, j)
 
     def concat_ss(self):
-        seq_of_ss = ['', '']
+        seq_of_ss = [[], []]
         concat_ss_index = [{}, {}]
 
         for a_b in range(SubSequencesMatcher.AB):
@@ -88,8 +88,10 @@ class SubSequencesMatcher:
         return self.matching_blocks
 
 if __name__ == '__main__':
-    vnames = ['PrintGuiData', 'PrintDataGui', 'GuiPrintData', 'GuiDataPrint', 'DataPrintGui', 'DataGuiPrint',
-              'PrintingGuiData', 'PrintData', 'GuiPrint']
+    vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui'], ['Gui', 'Print', 'Data'], ['Gui', 'Data', 'Print'],
+              ['Data', 'Print', 'Gui'], ['Data', 'Gui', 'Print'], ['Printing', 'Gui', 'Data'], ['Print', 'Data'],
+              ['Gui', 'Print']]
+    # vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui']]
 
     for b in range(len(vnames)):
         for a in range(b + 1):

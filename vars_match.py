@@ -1,6 +1,6 @@
 import divide_to_words
-# from modificated_difflib import SequenceMatcher
-from difflib import SequenceMatcher
+from modificated_difflib import SequenceMatcher
+# from difflib import SequenceMatcher
 
 
 class SubSequencesMatcher:
@@ -27,8 +27,8 @@ class SubSequencesMatcher:
         len_a = len(self.sequence_a)
         len_b = len(self.sequence_b)
 
+        sm = SequenceMatcher(a=self.sequence_a, b=self.sequence_b)
         while True:
-            sm = SequenceMatcher(a=self.modified_seq_a, b=self.modified_seq_b)
             i, j, k = x = sm.find_longest_match(0, len_a, 0, len_b)
 
             if k == 0:
@@ -36,6 +36,8 @@ class SubSequencesMatcher:
 
             self.matching_blocks.append(x)
             self.modify_seqs(i, j, k)
+            sm.set_seq1(self.modified_seq_a)
+            sm.update_matching_seq2(self.modified_seq_b, j, k)
 
         return self.matching_blocks
 

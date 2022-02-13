@@ -334,6 +334,25 @@ class SequenceMatcher:
             for elt in popular: # ditto; as fast for 1% deletion
                 del b2j[elt]
 
+    def update_matching_seq2(self, b, j, k):
+        if b is self.b:
+            return
+        self.__update_chain_b(b, j, k)
+        self.b = b
+        self.matching_blocks = self.opcodes = None
+        self.fullbcount = None
+
+    def __update_chain_b(self, b, j, k):
+        for jj in range(j, j+k):
+            if self.b[jj] in self.b2j.keys():
+                self.b2j[self.b[jj]].remove(jj)
+                if len(self.b2j[self.b[jj]]) == 0:
+                    del self.b2j[self.b[jj]]
+
+        b2j_illegal_char = self.b2j.setdefault(b[j], [])
+        b2j_illegal_char.extend(range(j, j+k))
+        self.b2j[b[j]] = sorted(b2j_illegal_char)
+
     def find_longest_match(self, alo=0, ahi=None, blo=0, bhi=None):
         """Find longest matching block in a[alo:ahi] and b[blo:bhi].
 

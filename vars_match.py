@@ -1,7 +1,7 @@
 import divide_to_words
 from modificated_difflib import SequenceMatcher
 # from difflib import SequenceMatcher
-
+import editdistance as ed
 
 class SubSequencesMatcher:
     ILLEGAL_VALUE_A = '#'
@@ -23,7 +23,36 @@ class SubSequencesMatcher:
         self.modified_seq_a = self.modified_seq_a[:i] + self.illegal_value_a * k + self.modified_seq_a[i+k:]
         self.modified_seq_b = self.modified_seq_b[:j] + self.illegal_value_b * k + self.modified_seq_b[j+k:]
 
+    @staticmethod
+    def is_words_similar(word_a, word_b):
+        distance = ed.eval(word_a, word_b)
+        return distance < min(len(word_a), len(word_b)) / 3   # TODO: TBD the exact value
+
+    def find_longest_match(self):
+        longest_len = 0
+        # longest_score = 0     # TODO: maybe it is better to work with a score for each pair of words, and score for a sequence accordingly.
+        longest_idx_a = None
+        longest_idx_b = None
+
+        for i in range(len(self.modified_seq_a)):
+            for j in range(len((self.modified_seq_b))):
+                k = 0
+                while self.is_words_similar(self.modified_seq_a[i + k], self.modified_seq_b[j + k]):
+                    k += 1
+                    if k >= longest_len:
+                        longest_len = k
+                        if k == 1:
+                            longest_idx_a = i
+                            longest_idx_b = j
+                else:
+                    k = 0
+
+
+
     def get_matching_blocks(self):
+        self.find_longest_match()
+
+
         len_a = len(self.sequence_a)
         len_b = len(self.sequence_b)
 

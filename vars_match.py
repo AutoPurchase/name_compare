@@ -46,10 +46,12 @@ if __name__ == '__main__':
     # vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui'], ['Gui', 'Print', 'Data'], ['Gui', 'Data', 'Print'],
     #           ['Data', 'Print', 'Gui'], ['Data', 'Gui', 'Print'], ['Printing', 'Gui', 'Data'], ['Print', 'Data'],
     #           ['Gui', 'Print']]
-    vnames = ['PrintGuiData', 'PrintDataGui', 'GuiPrintData', 'GuiDataPrint', 'DataPrintGui', 'DataGuiPrint',
-              'PrintingGuiData', 'PrintData', 'GuiPrint']
-
+    # vnames = ['PrintGuiData', 'PrintDataGui', 'GuiPrintData', 'GuiDataPrint', 'DataPrintGui', 'DataGuiPrint',
+    #           'PrintingGuiData', 'PrintData', 'GuiPrint']
     # vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui']]
+    # vnames = ['TheSchoolBusIsYellow', 'TookBusToSchool']
+    # vnames = ['the_schoolbus_is_yellow', 'took_bus_to_school']
+    vnames = ['theschoolbusisyellow', 'tookbustoschool']
 
     for b in range(len(vnames)):
         for a in range(b + 1):
@@ -58,5 +60,5 @@ if __name__ == '__main__':
 
             print(f'{b + 1}.{a + 1}.\na="{vnames[a]}"\nb="{vnames[b]}"')
             for (i, j, k) in s.get_matching_blocks():
-                print(f'\ta[{i}] and b[{j}] match for {k} elements: {vnames[a][i:i+k]}')
+                print(f'\ta[{i}] and b[{j}] match for {k} elements: "{vnames[a][i:i+k]}"')
             print('\n', end='')

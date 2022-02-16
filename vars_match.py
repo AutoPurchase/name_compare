@@ -1,7 +1,5 @@
-import divide_to_words
-from modificated_difflib import SequenceMatcher
-# from difflib import SequenceMatcher
 import editdistance as ed
+from divide_to_words import Variable
 
 class SubSequencesMatcher:
     ILLEGAL_VALUE_A = '#'
@@ -26,68 +24,78 @@ class SubSequencesMatcher:
     @staticmethod
     def is_words_similar(word_a, word_b):
         distance = ed.eval(word_a, word_b)
-        return distance < min(len(word_a), len(word_b)) / 3   # TODO: TBD the exact value
+        return distance < min(len(word_a), len(word_b)) / 3, distance   # TODO: TBD the exact value
 
     def find_longest_match(self):
         longest_len = 0
-        # longest_score = 0     # TODO: maybe it is better to work with a score for each pair of words, and score for a sequence accordingly.
+        # longest_score = 0     # TODO: maybe it is better to work with a score for each pair of words, and score for a sequence accordingly (like num of equal letters)
         longest_idx_a = None
         longest_idx_b = None
-
-        for i in range(len(self.modified_seq_a)):
-            for j in range(len((self.modified_seq_b))):
-                k = 0
-                while self.is_words_similar(self.modified_seq_a[i + k], self.modified_seq_b[j + k]):
-                    k += 1
-                    if k >= longest_len:
-                        longest_len = k
-                        if k == 1:
-                            longest_idx_a = i
-                            longest_idx_b = j
-                else:
-                    k = 0
-
-
-
-    def get_matching_blocks(self):
-        self.find_longest_match()
-
+        most_of_letters = 0
+        shortest_distance = float('inf')
+        checked_points = {}
 
         len_a = len(self.sequence_a)
         len_b = len(self.sequence_b)
 
-        sm = SequenceMatcher(a=self.sequence_a, b=self.sequence_b)
+        for i in range(len_a):
+            for j in range(len_b):
+                if checked_points.get((i, j)) is not None:  # Because or the aren't similar, or, if the are similar,
+                                                            # they already a part of a longer sequence
+                    continue
+
+                k = d = l = 0   # k: word index, d: distance, l: number of letters
+                while i+k < len_a and j+k < len_b and \
+                        (similarity := self.is_words_similar(self.modified_seq_a[i + k], self.modified_seq_b[j + k]))[0]:
+                    checked_points[(i+k, j+k)] = True
+                    d += similarity[1]
+                    l += len(self.modified_seq_a[i + k]) + len(self.modified_seq_b[j + k])
+                    k += 1
+
+                    if k > longest_len or \
+                        k == longest_len and \
+                            (d < shortest_distance or (d == shortest_distance and l > most_of_letters)):
+                        longest_len = k
+                        shortest_distance = d
+                        most_of_letters = l
+
+                        if k == 1:
+                            longest_idx_a = i
+                            longest_idx_b = j
+                else:
+                    if i+k < len_a and j+k < len_b:
+                        checked_points[(i+k, j+k)] = False
+
+        return longest_idx_a, longest_idx_b, longest_len
+
+    def get_matching_blocks(self):
         while True:
-            i, j, k = x = sm.find_longest_match(0, len_a, 0, len_b)
+            i, j, k = x = self.find_longest_match()
 
             if k == 0:
                 break
 
             self.matching_blocks.append(x)
             self.modify_seqs(i, j, k)
-            sm.set_seq1(self.modified_seq_a)
-            sm.update_matching_seq2(self.modified_seq_b, j, k)
 
         return self.matching_blocks
 
 
 if __name__ == '__main__':
-    # vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui'], ['Gui', 'Print', 'Data'], ['Gui', 'Data', 'Print'],
-    #           ['Data', 'Print', 'Gui'], ['Data', 'Gui', 'Print'], ['Printing', 'Gui', 'Data'], ['Print', 'Data'],
-    #           ['Gui', 'Print']]
-    # vnames = ['PrintGuiData', 'PrintDataGui', 'GuiPrintData', 'GuiDataPrint', 'DataPrintGui', 'DataGuiPrint',
-    #           'PrintingGuiData', 'PrintData', 'GuiPrint']
-    # vnames = [['Print', 'Gui', 'Data'], ['Print', 'Data', 'Gui']]
-    # vnames = ['TheSchoolBusIsYellow', 'TookBusToSchool']
-    # vnames = ['the_schoolbus_is_yellow', 'took_bus_to_school']
-    vnames = ['theschoolbusisyellow', 'tookbustoschool']
+    vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',
+              'Data_Print_Gui','Data_Gui_Print','Printing_Gui_Data','Print_Data',
+              'Gui_Print']
+    vnames = ['TheSchoolBusIsYellow', 'TookBusToSchool', 'TookBusToSchoool']
 
     for b in range(len(vnames)):
-        for a in range(b + 1):
-            s = SubSequencesMatcher(vnames[a], vnames[b])
-            # s = SubSequencesMatcher(vnames[a], vnames[b], lambda x: x == "_")
+        for a in range(b):
+            a_words = Variable(vnames[a]).get_words()
+            b_words = Variable(vnames[b]).get_words()
+
+            s = SubSequencesMatcher(a_words, b_words)
 
             print(f'{b + 1}.{a + 1}.\na="{vnames[a]}"\nb="{vnames[b]}"')
+
             for (i, j, k) in s.get_matching_blocks():
-                print(f'\ta[{i}] and b[{j}] match for {k} elements: "{vnames[a][i:i+k]}"')
+                print(f'\ta[{i}] and b[{j}] match for {k} elements: \n\t\t{a_words[i:i+k]} \n\t\t{b_words[j:j+k]}')
             print('\n', end='')

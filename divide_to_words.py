@@ -18,6 +18,9 @@ class Variable:
 
         return list(filter(None, name.split('_')))
 
+    def get_words(self):
+        return self.words
+
     def get_var_len(self):
         return len(self.name)
 

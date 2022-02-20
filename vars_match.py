@@ -9,8 +9,8 @@ SYNONYMS_PLURAL_PATH = abspath(join(dirname(__file__), r'synonyms_and_plural.csv
 
 def get_synonyms_plural_df():
     synonyms_and_plural_df = pd.read_csv(SYNONYMS_PLURAL_PATH).set_index('word')
-    synonyms = synonyms_and_plural_df['synonyms'].to_dict()
-    plural = synonyms_and_plural_df['plural'].to_dict()
+    synonyms = synonyms_and_plural_df['synonyms'].dropna().to_dict()
+    plural = synonyms_and_plural_df['plural'].dropna().to_dict()
     return synonyms, plural
 
 

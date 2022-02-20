@@ -3,26 +3,38 @@ from itertools import chain
 
 
 class Variable:
-    def __init__(self, name):
+    def __init__(self, name, case_sensitivity=False, word_separator='_', literal=False):
         self.name = name
+        self.case_sensitivity = case_sensitivity
+        self.word_separator = word_separator
+        self.literal = literal
+
         self.words = self.divide()
 
     def divide(self):
-        # name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', self.name)
-        # name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+        if self.literal:
+            return [self.name]
 
-        name = re.sub('[^0-9A-Za-z_]', '_', self.name)
-        name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        # name = re.sub('([A-Z]{2})([0-9]+)', r'\1_\2', name)
-        name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+        name = re.sub(f'[^0-9A-Za-z{self.word_separator}]', self.word_separator, self.name)
+        name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separator}\2', name)
+        name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separator}\2', name)
 
-        return list(filter(None, name.split('_')))
+        if not self.case_sensitivity:
+            name = name.lower()
+
+        return list(filter(None, name.split(self.word_separator)))
 
     def get_words(self):
         return self.words
 
-    def get_var_len(self):
-        return len(self.name)
+    def get_normalized_name(self, word_separator=''):
+        return word_separator.join(self.words)
+
+    def get_words_len(self):
+        return [len(w) for w in self.words]
+
+    # def get_var_len(self):
+    #     return len(self.name)
 
     def get_num_of_words(self):
         return len(self.words)

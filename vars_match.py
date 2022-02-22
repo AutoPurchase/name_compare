@@ -1,6 +1,7 @@
 import sys
 from os.path import abspath, dirname, join
 import editdistance as ed
+from strsimpy.damerau import Damerau
 from divide_to_words import Variable
 import pandas as pd
 from itertools import chain
@@ -32,13 +33,16 @@ class MatchMaker:
     def set_word_separator(self, word_separator):
         self.word_separator = word_separator
 
-    def edist(self, name_1, name_2, literal_comparison=False):
+    def edist(self, name_1, name_2, literal_comparison=False, enable_transposition=False):
         var_1_str = self.var_1.set_name(name_1).get_normalized_name()
         var_2_str = self.var_2.set_name(name_2).get_normalized_name()
 
-        max_var_len = max(len(var_1_str), len(var_1_str))
+        max_var_len = max(len(var_1_str), len(var_2_str))
 
-        return ed.eval(var_1_str, var_2_str) / max_var_len
+        distance = ed.eval(var_1_str, var_2_str) \
+            if not enable_transposition else Damerau().distance(var_1_str, var_2_str)
+
+        return distance / max_var_len
 
     # def __init__(self, sequence_a, sequence_b):
     #     self.sequence_a = sequence_a
@@ -156,8 +160,10 @@ if __name__ == '__main__':
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1])) or 0
 
     if scriptIndex == TEST_EDIT_DISTANCE:
-        var_names = ['TheSchoolBusIsYellow', 'YellowIsSchoolBus']
+        # var_names = ['TheSchoolBusIsYellow', 'YellowIsSchoolBus']
+        var_names = ['CA', 'ABC']
         print(MatchMaker().edist(var_names[0], var_names[1]))
+        print(MatchMaker().edist(var_names[0], var_names[1], enable_transposition=True))
 
 
 

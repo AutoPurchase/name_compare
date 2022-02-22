@@ -23,7 +23,8 @@ class MatchMaker:
     def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True):
         self.case_sensitivity = case_sensitivity
         self.word_separator = word_separator
-        self.separate_by_big_letters = separate_by_big_letters
+        self.var_1 = Variable(case_sensitivity, word_separator, separate_by_big_letters)
+        self.var_2 = Variable(case_sensitivity, word_separator, separate_by_big_letters)
 
     def set_case_sensitivity(self, case_sensitivity):
         self.case_sensitivity = case_sensitivity
@@ -31,15 +32,13 @@ class MatchMaker:
     def set_word_separator(self, word_separator):
         self.word_separator = word_separator
 
-    def set_separate_by_big_letters(self, separate_by_big_letters):
-        self.separate_by_big_letters = separate_by_big_letters
-
     def edist(self, name_1, name_2, literal_comparison=False):
-        var_1 = Variable(name_1, self.case_sensitivity, self.word_separator, literal_comparison).get_normalized_name()
-        var_2 = Variable(name_2, self.case_sensitivity, self.word_separator, literal_comparison).get_normalized_name()
-        max_var_len = max(len(var_1), len(var_2))
+        var_1_str = self.var_1.set_name(name_1).get_normalized_name()
+        var_2_str = self.var_2.set_name(name_2).get_normalized_name()
 
-        return ed.eval(var_1, var_2) / max_var_len
+        max_var_len = max(len(var_1_str), len(var_1_str))
+
+        return ed.eval(var_1_str, var_2_str) / max_var_len
 
     # def __init__(self, sequence_a, sequence_b):
     #     self.sequence_a = sequence_a

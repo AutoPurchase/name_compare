@@ -3,21 +3,31 @@ from itertools import chain
 
 
 class Variable:
-    def __init__(self, name, case_sensitivity=False, word_separator='_', literal=False):
-        self.name = name
+    def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True):
         self.case_sensitivity = case_sensitivity
         self.word_separator = word_separator
+        self.separate_by_big_letters = separate_by_big_letters
+        self.name = ''
+        self.literal = ''
+        self.words = []
+
+    def set_name(self, name, literal=False):
+        self.name = name
         self.literal = literal
 
         self.words = self.divide()
+
+        return self
 
     def divide(self):
         if self.literal:
             return [self.name]
 
         name = re.sub(f'[^0-9A-Za-z{self.word_separator}]', self.word_separator, self.name)
-        name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separator}\2', name)
-        name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separator}\2', name)
+
+        if self.separate_by_big_letters:
+            name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separator}\2', name)
+            name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separator}\2', name)
 
         if not self.case_sensitivity:
             name = name.lower()

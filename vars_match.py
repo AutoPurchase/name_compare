@@ -33,16 +33,17 @@ class MatchMaker:
     def set_word_separator(self, word_separator):
         self.word_separator = word_separator
 
+    @staticmethod
+    def edit_distance(str_1, str_2, enable_transposition=False):
+        return ed.eval(str_1, str_2) if not enable_transposition else Damerau().distance(str_1, str_2)
+
     def edist(self, name_1, name_2, literal_comparison=False, enable_transposition=False):
-        var_1_str = self.var_1.set_name(name_1).get_normalized_name()
-        var_2_str = self.var_2.set_name(name_2).get_normalized_name()
+        var_1_str = self.var_1.set_name(name_1, literal_comparison).get_normalized_name()
+        var_2_str = self.var_2.set_name(name_2, literal_comparison).get_normalized_name()
 
         max_var_len = max(len(var_1_str), len(var_2_str))
 
-        distance = ed.eval(var_1_str, var_2_str) \
-            if not enable_transposition else Damerau().distance(var_1_str, var_2_str)
-
-        return distance / max_var_len
+        return self.edit_distance(var_1_str, var_2_str, enable_transposition) / max_var_len
 
     # def __init__(self, sequence_a, sequence_b):
     #     self.sequence_a = sequence_a
@@ -155,16 +156,26 @@ class MatchMaker:
 
 
 if __name__ == '__main__':
-    TEST_EDIT_DISTANCE = 0
+    TEST_EDIT_DISTANCE = 1 << 0
+    TEST_NORMALIZED_EDIT_DISTANCE = 1 << 1
 
-    scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1])) or 0
+    scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
 
-    if scriptIndex == TEST_EDIT_DISTANCE:
-        # var_names = ['TheSchoolBusIsYellow', 'YellowIsSchoolBus']
+    match_maker = MatchMaker()
+
+    if scriptIndex & TEST_EDIT_DISTANCE:
         var_names = ['CA', 'ABC']
-        print(MatchMaker().edist(var_names[0], var_names[1]))
-        print(MatchMaker().edist(var_names[0], var_names[1], enable_transposition=True))
+        print(f'''Edit distanse between "{var_names[0]}" and "{var_names[1]}":
+    Without swapping: {match_maker.edit_distance(var_names[0], var_names[1])}
+    With swapping: {match_maker.edit_distance(var_names[0], var_names[1], enable_transposition=True)}
+''')
 
+    if scriptIndex & TEST_NORMALIZED_EDIT_DISTANCE:
+        var_names = ['CA', 'ABC']
+        print(f'''Normalized edit distanse between "{var_names[0]}" and "{var_names[1]}":
+    Without swapping: {match_maker.edist(var_names[0], var_names[1])}
+    With swapping: {match_maker.edist(var_names[0], var_names[1], enable_transposition=True)}
+''')
 
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',

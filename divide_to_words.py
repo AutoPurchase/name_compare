@@ -17,8 +17,6 @@ class Variable:
 
         self.words = self.divide()
 
-        return self
-
     def divide(self):
         if self.literal:
             return [self.name]
@@ -37,7 +35,10 @@ class Variable:
     def get_words(self):
         return self.words
 
-    def get_normalized_name(self, word_separator=''):
+    def get_normalized_name(self, name=None, literal=False, word_separator=''):
+        if name is not None:
+            self.set_name(name, literal)
+
         return word_separator.join(self.words)
 
     def get_words_len(self):

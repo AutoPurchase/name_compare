@@ -1,5 +1,6 @@
 import sys
 from os.path import abspath, dirname, join
+from modificated_difflib import SequenceMatcher
 import editdistance as ed
 from strsimpy.damerau import Damerau
 from divide_to_words import Variable
@@ -17,8 +18,8 @@ def get_synonyms_plural_df():
 
 
 class MatchMaker:
-    ILLEGAL_VALUE_A = '#'
-    ILLEGAL_VALUE_B = '!'
+    SEPARATOR_1 = '#'
+    SEPARATOR_2 = '!'
     Synonyms = Plural = None
 
     def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True):
@@ -38,12 +39,68 @@ class MatchMaker:
         return ed.eval(str_1, str_2) if not enable_transposition else Damerau().distance(str_1, str_2)
 
     def edist(self, name_1, name_2, literal_comparison=False, enable_transposition=False):
-        var_1_str = self.var_1.set_name(name_1, literal_comparison).get_normalized_name()
-        var_2_str = self.var_2.set_name(name_2, literal_comparison).get_normalized_name()
+        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
+        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
 
         max_var_len = max(len(var_1_str), len(var_2_str))
 
         return self.edit_distance(var_1_str, var_2_str, enable_transposition) / max_var_len
+
+    def match(self, name_1, name_2, literal_comparison=False):
+        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
+        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
+
+        return SequenceMatcher(a=var_1_str, b=var_2_str).ratio()
+
+    def get_not_exist_visible_char(self, name):
+        for i in range(0x20, 0x100):
+            if (c := chr(i)) not in name:
+                return c
+        raise Exception(f'Error: illegal characters in the name: {name}')
+
+    def get_separators(self, name_1, name_2):
+        separator_1 = MatchMaker.SEPARATOR_1
+        separator_2 = MatchMaker.SEPARATOR_2
+
+        if separator_1 in name_2:
+            separator_1 = self.get_not_exist_visible_char(name_2)
+        if separator_2 in name_1:
+            separator_2 = self.get_not_exist_visible_char(name_1)
+
+        return separator_1, separator_2
+
+    def modify_seqs(self, var_1_str, var_2_str, i, j, k, separator_1, separator_2):
+        return var_1_str[:i] + separator_1 * k + var_1_str[i + k:], \
+               var_2_str[:j] + separator_2 * k + var_2_str[j + k:]
+
+    def all_match(self, name_1, name_2, literal_comparison=False, min_len=2):
+        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
+        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
+        separator_1, separator_2 = self.get_separators(var_1_str, var_2_str)
+
+        len_1 = len(var_1_str)
+        len_2 = len(var_2_str)
+        # matching_blocks = []
+        match_len = 0
+
+        sm = SequenceMatcher(a=var_1_str, b=var_2_str)
+        while True:
+            i, j, k = x = sm.find_longest_match(0, len_1, 0, len_2)
+
+            if k < min_len:
+                break
+
+            # matching_blocks.append(x)
+            match_len += k
+            var_1_str, var_2_str = self.modify_seqs(var_1_str, var_2_str, i, j, k, separator_1, separator_2)
+            sm.set_seq1(var_1_str)
+            sm.update_matching_seq2(var_2_str, j, k)
+
+        return match_len / max(len_1, len_2)
+
+
+
+
 
     # def __init__(self, sequence_a, sequence_b):
     #     self.sequence_a = sequence_a
@@ -56,10 +113,6 @@ class MatchMaker:
     #     self.illegal_value_a, self.illegal_value_b = \
     #         (MatchMaker.ILLEGAL_VALUE_A, MatchMaker.ILLEGAL_VALUE_B) if isinstance(sequence_a, str) \
     #         else ([MatchMaker.ILLEGAL_VALUE_A], [MatchMaker.ILLEGAL_VALUE_B])
-
-    def modify_seqs(self, i, j, k):
-        self.modified_seq_a = self.modified_seq_a[:i] + self.illegal_value_a * k + self.modified_seq_a[i+k:]
-        self.modified_seq_b = self.modified_seq_b[:j] + self.illegal_value_b * k + self.modified_seq_b[j+k:]
 
     @staticmethod
     def is_words_similar(word_1, word_2):
@@ -156,8 +209,12 @@ class MatchMaker:
 
 
 if __name__ == '__main__':
-    TEST_EDIT_DISTANCE = 1 << 0
-    TEST_NORMALIZED_EDIT_DISTANCE = 1 << 1
+    set_bit = lambda bit, num=0: num | (1 << bit)
+
+    TEST_EDIT_DISTANCE = set_bit(0)
+    TEST_NORMALIZED_EDIT_DISTANCE = set_bit(1)
+    TEST_SEQUENCE_MATCHER_RATIO = set_bit(2)
+    TEST_SEQUENCE_ALL_MATCHES_RATIO = set_bit(3)
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
 
@@ -167,15 +224,23 @@ if __name__ == '__main__':
         var_names = ['CA', 'ABC']
         print(f'''Edit distanse between "{var_names[0]}" and "{var_names[1]}":
     Without swapping: {match_maker.edit_distance(var_names[0], var_names[1])}
-    With swapping: {match_maker.edit_distance(var_names[0], var_names[1], enable_transposition=True)}
-''')
+    With swapping: {match_maker.edit_distance(var_names[0], var_names[1], enable_transposition=True)}''')
 
     if scriptIndex & TEST_NORMALIZED_EDIT_DISTANCE:
         var_names = ['CA', 'ABC']
         print(f'''Normalized edit distanse between "{var_names[0]}" and "{var_names[1]}":
     Without swapping: {match_maker.edist(var_names[0], var_names[1])}
-    With swapping: {match_maker.edist(var_names[0], var_names[1], enable_transposition=True)}
-''')
+    With swapping: {match_maker.edist(var_names[0], var_names[1], enable_transposition=True)}''')
+
+    if scriptIndex & TEST_SEQUENCE_MATCHER_RATIO:
+        var_names = ['AB_CD_EF', 'EF_CD_AB']
+        print(f'''Sequence Matcher match between "{var_names[0]}" and "{var_names[1]}":
+    {match_maker.match(var_names[0], var_names[1])}''')
+
+    if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
+        var_names = ['AB_CD_EF', 'EF_CD_AB']
+        print(f'''All matches match between "{var_names[0]}" and "{var_names[1]}":
+    {match_maker.all_match(var_names[0], var_names[1])}''')
 
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',

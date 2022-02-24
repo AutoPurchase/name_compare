@@ -3,10 +3,16 @@ from itertools import chain
 
 
 class Variable:
-    def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True):
+    NUMBERS_SEPARATE_WORD = 0
+    NUMBERS_IGNORE = 1
+    NUMBERS_LEAVE = 1
+
+    def __init__(self, case_sensitivity=False, word_separator='_',
+                 separate_by_big_letters=True, numbers_behavior=NUMBERS_SEPARATE_WORD):
         self.case_sensitivity = case_sensitivity
         self.word_separator = word_separator
         self.separate_by_big_letters = separate_by_big_letters
+        self.numbers_behavior = numbers_behavior
         self.name = ''
         self.literal = ''
         self.words = []
@@ -27,12 +33,21 @@ class Variable:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separator}\2', name)
             name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separator}\2', name)
 
+            if self.numbers_behavior == Variable.NUMBERS_SEPARATE_WORD:
+                name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separator}\2', name)
+                name = re.sub('([0-9])([a-z])', fr'\1{self.word_separator}\2', name)
+            elif self.numbers_behavior == Variable.NUMBERS_IGNORE:
+                name = re.sub('[0-9]', '', name)
+
         if not self.case_sensitivity:
             name = name.lower()
 
         return list(filter(None, name.split(self.word_separator)))
 
-    def get_words(self):
+    def get_words(self, name=None):
+        if name is not None:
+            self.set_name(name)
+
         return self.words
 
     def get_normalized_name(self, name=None, literal=False, word_separator=''):

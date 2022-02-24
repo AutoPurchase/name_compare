@@ -22,11 +22,12 @@ class MatchMaker:
     SEPARATOR_2 = '!'
     Synonyms = Plural = None
 
-    def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True):
+    def __init__(self, case_sensitivity=False, word_separator='_', separate_by_big_letters=True,
+                 numbers_behavior=Variable.NUMBERS_SEPARATE_WORD):
         self.case_sensitivity = case_sensitivity
         self.word_separator = word_separator
-        self.var_1 = Variable(case_sensitivity, word_separator, separate_by_big_letters)
-        self.var_2 = Variable(case_sensitivity, word_separator, separate_by_big_letters)
+        self.var_1 = Variable(case_sensitivity, word_separator, separate_by_big_letters, numbers_behavior)
+        self.var_2 = Variable(case_sensitivity, word_separator, separate_by_big_letters, numbers_behavior)
 
     def set_case_sensitivity(self, case_sensitivity):
         self.case_sensitivity = case_sensitivity
@@ -52,20 +53,37 @@ class MatchMaker:
 
         return SequenceMatcher(a=var_1_str, b=var_2_str).ratio()
 
-    def get_not_exist_visible_char(self, name):
+    def get_not_exist_char_separator(self, name):
         for i in range(0x20, 0x100):
             if (c := chr(i)) not in name:
                 return c
         raise Exception(f'Error: illegal characters in the name: {name}')
 
-    def get_separators(self, name_1, name_2):
-        separator_1 = MatchMaker.SEPARATOR_1
-        separator_2 = MatchMaker.SEPARATOR_2
+    def get_not_exist_word_separator(self, name, separator_char):
+        i = 1
+        while (sep := separator_char * i) in name:
+            i += 1
+        return sep
 
-        if separator_1 in name_2:
-            separator_1 = self.get_not_exist_visible_char(name_2)
-        if separator_2 in name_1:
-            separator_2 = self.get_not_exist_visible_char(name_1)
+    def get_separators(self, name_1, name_2):
+        words_div_to_list = isinstance(name_1, list)
+
+        if words_div_to_list:
+            separator_1 = [MatchMaker.SEPARATOR_1]
+            separator_2 = [MatchMaker.SEPARATOR_2]
+
+            if separator_1 in name_2:
+                separator_1 = self.get_not_exist_word_separator(name_2, separator_1)
+            if separator_2 in name_1:
+                separator_2 = self.get_not_exist_word_separator(name_1, separator_2)
+        else:
+            separator_1 = MatchMaker.SEPARATOR_1 if words_div_to_list else [MatchMaker.SEPARATOR_1]
+            separator_2 = MatchMaker.SEPARATOR_2 if words_div_to_list else [MatchMaker.SEPARATOR_2]
+
+            if separator_1 in name_2:
+                separator_1 = self.get_not_exist_char_separator(name_2)
+            if separator_2 in name_1:
+                separator_2 = self.get_not_exist_char_separator(name_1)
 
         return separator_1, separator_2
 
@@ -125,17 +143,6 @@ class MatchMaker:
 
 
 
-    # def __init__(self, sequence_a, sequence_b):
-    #     self.sequence_a = sequence_a
-    #     self.sequence_b = sequence_b
-    #     self.modified_seq_a = sequence_a[:]
-    #     self.modified_seq_b = sequence_b[:]
-    #     self.sequences = [self.sequence_a, self.sequence_b]
-    #     self.matching_blocks = []
-    #
-    #     self.illegal_value_a, self.illegal_value_b = \
-    #         (MatchMaker.ILLEGAL_VALUE_A, MatchMaker.ILLEGAL_VALUE_B) if isinstance(sequence_a, str) \
-    #         else ([MatchMaker.ILLEGAL_VALUE_A], [MatchMaker.ILLEGAL_VALUE_B])
 
     @staticmethod
     def is_words_similar(word_1, word_2):
@@ -156,16 +163,16 @@ class MatchMaker:
         distance = ed.eval(word_1, word_2)
         return similarity_threshold(word_1, word_2, distance), distance   # TODO: TBD the exact value
 
-    def find_longest_match(self):
+    def find_longest_match(self, var_1_list, var_2_list):
         longest_len = 0
-        longest_idx_a = None
-        longest_idx_b = None
+        longest_idx_1 = None
+        longest_idx_2 = None
         most_of_letters = 0
         shortest_distance = float('inf')
         checked_points = {}
 
-        len_a = len(self.sequence_a)
-        len_b = len(self.sequence_b)
+        len_a = len(var_1_list)
+        len_b = len(var_2_list)
 
         for i in range(len_a):
             for j in range(len_b):
@@ -189,39 +196,48 @@ class MatchMaker:
                         most_of_letters = l
 
                         if k == 1:
-                            longest_idx_a = i
-                            longest_idx_b = j
+                            longest_idx_1 = i
+                            longest_idx_2 = j
                 else:
                     if i+k < len_a and j+k < len_b:
                         checked_points[(i+k, j+k)] = False
 
-        return longest_idx_a, longest_idx_b, longest_len, shortest_distance
+        return longest_idx_1, longest_idx_2, longest_len, shortest_distance
 
-    def calc_matching_blocks(self):
+    def calc_matching_blocks(self, var_1_list, var_2_list):
+        modified_var_1 = var_1_list.copy()
+        modified_var_2 = var_2_list.copy()
+
+        matching_blocks = []
         while True:
-            i, j, k, d = x = self.find_longest_match()
+            i, j, k, d = x = self.find_longest_match(modified_var_1, modified_var_2)
 
             if k == 0:
                 break
 
-            self.matching_blocks.append(x)
-            self.replace_matches_by_separators(i, j, k)
+            matching_blocks.append(x)
+            modified_var_1, modified_var_2 = self.replace_matches_by_separators(modified_var_1, modified_var_2, i, j, k)
 
-        return self.matching_blocks
+        return matching_blocks
 
     def get_matching_blocks(self):
         return self.matching_blocks
 
-    def calc_similarity_score(self):
-        a_words = len(self.sequence_a)
-        b_words = len(self.sequence_b)
-        possible_pairs = max([a_words, b_words])
-        num_of_match_blocks = len(self.matching_blocks)
+    def words_match(self, name_1, name_2, min_word_match_degree=2/3, order_change_penalty=0.04,
+                    account_word_num_of_letters=True):
+        var_1_list = self.var_1.get_words(name_1)
+        var_2_list = self.var_2.get_words(name_2)
+        matching_blocks = self.calc_matching_blocks(var_1_list, var_2_list)
+
+        num_of_words_1 = len(var_1_list)
+        num_of_words_2 = len(var_2_list)
+        possible_pairs = max([num_of_words_1, num_of_words_2])
+        num_of_match_blocks = len(matching_blocks)
 
         num_of_match_words = 0
         ratio_match_letters_vs_letters = 1
 
-        for (i, j, k, d) in self.matching_blocks:
+        for (i, j, k, d) in matching_blocks:
             num_of_match_words += k
             max_letters_in_block = max(sum(len(w) for w in self.sequence_a[i:i+k]),
                                        sum(len(w) for w in self.sequence_b[j:j+k]))

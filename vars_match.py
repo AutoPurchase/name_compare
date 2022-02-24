@@ -69,9 +69,9 @@ class MatchMaker:
 
         return separator_1, separator_2
 
-    def modify_seqs(self, var_1_str, var_2_str, i, j, k, separator_1, separator_2):
-        return var_1_str[:i] + separator_1 * k + var_1_str[i + k:], \
-               var_2_str[:j] + separator_2 * k + var_2_str[j + k:]
+    def replace_matches_by_separators(self, var_1_str, var_2_str, i, j, k, separator_1, separator_2):
+        return var_1_str[:i] + separator_1 * k + var_1_str[i+k:], \
+               var_2_str[:j] + separator_2 * k + var_2_str[j+k:]
 
     def all_match(self, name_1, name_2, literal_comparison=False, min_len=2):
         var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
@@ -92,13 +92,36 @@ class MatchMaker:
 
             # matching_blocks.append(x)
             match_len += k
-            var_1_str, var_2_str = self.modify_seqs(var_1_str, var_2_str, i, j, k, separator_1, separator_2)
+            var_1_str, var_2_str = self.replace_matches_by_separators(var_1_str, var_2_str, i, j, k, separator_1, separator_2)
             sm.set_seq1(var_1_str)
             sm.update_matching_seq2(var_2_str, j, k)
 
         return match_len / max(len_1, len_2)
 
+    def remove_matches(self, var_1_str, var_2_str, i, j, k):
+        return var_1_str[:i] + var_1_str[i+k:], \
+               var_2_str[:j] + var_2_str[j+k:]
 
+    def unedit_match(self, name_1, name_2, literal_comparison=False, min_len=2):
+        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
+        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
+        len_1 = len(var_1_str)
+        len_2 = len(var_2_str)
+
+        match_len = 0
+        sm = SequenceMatcher(a=var_1_str, b=var_2_str)
+        while True:
+            i, j, k = sm.find_longest_match(0, len(var_1_str), 0, len(var_2_str))
+
+            if k < min_len:
+                break
+
+            match_len += k
+            var_1_str, var_2_str = self.remove_matches(var_1_str, var_2_str, i, j, k)
+            sm.set_seq1(var_1_str)
+            sm.set_seq2(var_2_str)
+
+        return match_len / max(len_1, len_2)
 
 
 
@@ -182,7 +205,7 @@ class MatchMaker:
                 break
 
             self.matching_blocks.append(x)
-            self.modify_seqs(i, j, k)
+            self.replace_matches_by_separators(i, j, k)
 
         return self.matching_blocks
 
@@ -215,6 +238,7 @@ if __name__ == '__main__':
     TEST_NORMALIZED_EDIT_DISTANCE = set_bit(1)
     TEST_SEQUENCE_MATCHER_RATIO = set_bit(2)
     TEST_SEQUENCE_ALL_MATCHES_RATIO = set_bit(3)
+    TEST_SEQUENCE_UNEDIT_MATCHES_RATIO = set_bit(4)
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
 
@@ -238,9 +262,14 @@ if __name__ == '__main__':
     {match_maker.match(var_names[0], var_names[1])}''')
 
     if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
-        var_names = ['AB_CD_EF', 'EF_CD_AB']
+        var_names = ['A_CD_EF_B', 'A_EF_CD_B']
         print(f'''All matches match between "{var_names[0]}" and "{var_names[1]}":
     {match_maker.all_match(var_names[0], var_names[1])}''')
+
+    if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
+        var_names = ['A_CD_EF_B', 'A_EF_CD_B']
+        print(f'''Unedit matches match between "{var_names[0]}" and "{var_names[1]}":
+    {match_maker.unedit_match(var_names[0], var_names[1])}''')
 
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',

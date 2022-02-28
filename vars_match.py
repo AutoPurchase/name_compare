@@ -12,8 +12,8 @@ SYNONYMS_PLURAL_PATH = abspath(join(dirname(__file__), r'synonyms_and_plural.csv
 
 def get_synonyms_plural_df():
     synonyms_and_plural_df = pd.read_csv(SYNONYMS_PLURAL_PATH).set_index('word')
-    synonyms = synonyms_and_plural_df['synonyms'].dropna().to_dict()
-    plural = synonyms_and_plural_df['plural'].dropna().to_dict()
+    synonyms = synonyms_and_plural_df['synonyms'].dropna().apply(lambda x: x.split(',')).to_dict()
+    plural = synonyms_and_plural_df['plural'].dropna().apply(lambda x: x.split(',')).to_dict()
     return synonyms, plural
 
 
@@ -77,8 +77,8 @@ class MatchMaker:
             if separator_2 in name_1:
                 separator_2 = self.get_not_exist_word_separator(name_1, separator_2)
         else:
-            separator_1 = MatchMaker.SEPARATOR_1 if words_div_to_list else [MatchMaker.SEPARATOR_1]
-            separator_2 = MatchMaker.SEPARATOR_2 if words_div_to_list else [MatchMaker.SEPARATOR_2]
+            separator_1 = MatchMaker.SEPARATOR_1
+            separator_2 = MatchMaker.SEPARATOR_2
 
             if separator_1 in name_2:
                 separator_1 = self.get_not_exist_char_separator(name_2)
@@ -91,30 +91,34 @@ class MatchMaker:
         return var_1_str[:i] + separator_1 * k + var_1_str[i+k:], \
                var_2_str[:j] + separator_2 * k + var_2_str[j+k:]
 
-    def all_match(self, name_1, name_2, literal_comparison=False, min_len=2):
-        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
-        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
-        separator_1, separator_2 = self.get_separators(var_1_str, var_2_str)
-
-        len_1 = len(var_1_str)
-        len_2 = len(var_2_str)
-        # matching_blocks = []
+    def cross_match(self, name_1, name_2, separator_1, separator_2, min_len=1):
+        len_1 = len(name_1)
+        len_2 = len(name_2)
+        matching_blocks = []
         match_len = 0
 
-        sm = SequenceMatcher(a=var_1_str, b=var_2_str)
+        sm = SequenceMatcher(a=name_1, b=name_2)
         while True:
             i, j, k = x = sm.find_longest_match(0, len_1, 0, len_2)
 
             if k < min_len:
                 break
 
-            # matching_blocks.append(x)
+            matching_blocks.append(x)
             match_len += k
-            var_1_str, var_2_str = self.replace_matches_by_separators(var_1_str, var_2_str, i, j, k, separator_1, separator_2)
-            sm.set_seq1(var_1_str)
-            sm.update_matching_seq2(var_2_str, j, k)
+            name_1, name_2 = self.replace_matches_by_separators(name_1, name_2, i, j, k, separator_1, separator_2)
+            sm.set_seq1(name_1)
+            sm.update_matching_seq2(name_2, j, k)
 
-        return match_len / max(len_1, len_2)
+        return match_len, matching_blocks
+
+    def all_match(self, name_1, name_2, literal_comparison=False, min_len=2):
+        var_1_str = self.var_1.get_normalized_name(name_1, literal_comparison)
+        var_2_str = self.var_2.get_normalized_name(name_2, literal_comparison)
+        separator_1, separator_2 = self.get_separators(var_1_str, var_2_str)
+
+        return self.cross_match(var_1_str, var_2_str, separator_1, separator_2, min_len)[0] / \
+               max(len(var_1_str), len(var_2_str))
 
     def remove_matches(self, var_1_str, var_2_str, i, j, k):
         return var_1_str[:i] + var_1_str[i+k:], \
@@ -145,25 +149,26 @@ class MatchMaker:
 
 
     @staticmethod
-    def is_words_similar(word_1, word_2):
+    def is_words_similar(word_1, word_2, min_word_match_degree, use_meanings=False):
         if MatchMaker.Synonyms is None:
             MatchMaker.Synonyms, MatchMaker.Plural = get_synonyms_plural_df()
 
         if word_1 == word_2:
             return True, 0
-        elif word_2 in MatchMaker.Synonyms.get(word_1, []) \
-                or word_1 in MatchMaker.Synonyms.get(word_2, []):
-            return True, 1
-        elif word_2 ==  MatchMaker.Plural.get(word_1) \
-                or word_1 ==  MatchMaker.Plural.get(word_2):
-            return True, 1
+        elif use_meanings:
+            if word_2 in MatchMaker.Synonyms.get(word_1, []) \
+                    or word_1 in MatchMaker.Synonyms.get(word_2, []):
+                return True, 1
+            elif word_2 == MatchMaker.Plural.get(word_1) \
+                    or word_1 == MatchMaker.Plural.get(word_2):
+                return True, 1
 
-        similarity_threshold = lambda a, b, d: d <= min(len(a), len(a)) / 3
+        similarity_threshold = lambda a, b, d: d / min(len(a), len(a)) <= (1-min_word_match_degree)
 
         distance = ed.eval(word_1, word_2)
         return similarity_threshold(word_1, word_2, distance), distance   # TODO: TBD the exact value
 
-    def find_longest_match(self, var_1_list, var_2_list):
+    def find_longest_match(self, var_1_list, var_2_list, min_word_match_degree):
         longest_len = 0
         longest_idx_1 = None
         longest_idx_2 = None
@@ -177,15 +182,14 @@ class MatchMaker:
         for i in range(len_a):
             for j in range(len_b):
                 if checked_points.get((i, j)) is not None:  # Because or the aren't similar, or, if the are similar,
-                                                            # they already a part of a longer sequence
-                    continue
+                    continue                                # they already a part of a longer sequence
 
                 k = d = l = 0   # k: word index, d: distance, l: number of letters
                 while i+k < len_a and j+k < len_b and \
-                        (similarity := self.is_words_similar(self.modified_seq_a[i + k], self.modified_seq_b[j + k]))[0]:
+                        (similarity := self.is_words_similar(var_1_list[i + k], var_2_list[j + k], min_word_match_degree))[0]:
                     checked_points[(i+k, j+k)] = True
                     d += similarity[1]
-                    l += len(self.modified_seq_a[i + k]) + len(self.modified_seq_b[j + k])
+                    l += len(var_1_list[i + k]) + len(var_2_list[j + k])
                     k += 1
 
                     if k > longest_len or \
@@ -204,19 +208,21 @@ class MatchMaker:
 
         return longest_idx_1, longest_idx_2, longest_len, shortest_distance
 
-    def calc_matching_blocks(self, var_1_list, var_2_list):
+    def calc_matching_blocks(self, var_1_list, var_2_list, min_word_match_degree, account_word_num_of_letters):
         modified_var_1 = var_1_list.copy()
         modified_var_2 = var_2_list.copy()
+        separator_1, separator_2 = self.get_separators(modified_var_1, modified_var_2)
 
         matching_blocks = []
         while True:
-            i, j, k, d = x = self.find_longest_match(modified_var_1, modified_var_2)
+            i, j, k, d = x = self.find_longest_match(modified_var_1, modified_var_2, min_word_match_degree)
 
             if k == 0:
                 break
 
             matching_blocks.append(x)
-            modified_var_1, modified_var_2 = self.replace_matches_by_separators(modified_var_1, modified_var_2, i, j, k)
+            modified_var_1, modified_var_2 = self.replace_matches_by_separators(
+                modified_var_1, modified_var_2, i, j, k, separator_1, separator_2)
 
         return matching_blocks
 
@@ -227,11 +233,11 @@ class MatchMaker:
                     account_word_num_of_letters=True):
         var_1_list = self.var_1.get_words(name_1)
         var_2_list = self.var_2.get_words(name_2)
-        matching_blocks = self.calc_matching_blocks(var_1_list, var_2_list)
-
         num_of_words_1 = len(var_1_list)
         num_of_words_2 = len(var_2_list)
         possible_pairs = max([num_of_words_1, num_of_words_2])
+
+        matching_blocks = self.calc_matching_blocks(var_1_list, var_2_list, min_word_match_degree, account_word_num_of_letters)
         num_of_match_blocks = len(matching_blocks)
 
         num_of_match_words = 0
@@ -239,8 +245,8 @@ class MatchMaker:
 
         for (i, j, k, d) in matching_blocks:
             num_of_match_words += k
-            max_letters_in_block = max(sum(len(w) for w in self.sequence_a[i:i+k]),
-                                       sum(len(w) for w in self.sequence_b[j:j+k]))
+            max_letters_in_block = max(sum(len(w) for w in var_1_list[i:i+k]),
+                                       sum(len(w) for w in var_2_list[j:j+k]))
 
             ratio_match_letters_vs_letters *= (max_letters_in_block - d) / max_letters_in_block
 
@@ -255,6 +261,7 @@ if __name__ == '__main__':
     TEST_SEQUENCE_MATCHER_RATIO = set_bit(2)
     TEST_SEQUENCE_ALL_MATCHES_RATIO = set_bit(3)
     TEST_SEQUENCE_UNEDIT_MATCHES_RATIO = set_bit(4)
+    TEST_WARDS_MATCH = set_bit(5)
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
 
@@ -274,18 +281,23 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_SEQUENCE_MATCHER_RATIO:
         var_names = ['AB_CD_EF', 'EF_CD_AB']
-        print(f'''Sequence Matcher match between "{var_names[0]}" and "{var_names[1]}":
+        print(f'''Sequence Matcher between "{var_names[0]}" and "{var_names[1]}":
     {match_maker.match(var_names[0], var_names[1])}''')
 
     if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
         var_names = ['A_CD_EF_B', 'A_EF_CD_B']
-        print(f'''All matches match between "{var_names[0]}" and "{var_names[1]}":
+        print(f'''All matches between "{var_names[0]}" and "{var_names[1]}":
     {match_maker.all_match(var_names[0], var_names[1])}''')
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
         var_names = ['A_CD_EF_B', 'A_EF_CD_B']
-        print(f'''Unedit matches match between "{var_names[0]}" and "{var_names[1]}":
+        print(f'''Unedit matches between "{var_names[0]}" and "{var_names[1]}":
     {match_maker.unedit_match(var_names[0], var_names[1])}''')
+
+    if scriptIndex & TEST_WARDS_MATCH:
+        var_names = ['TheSchoolBusIsYellow', 'YellowIsSchoolBosColor']
+        print(f'''Word matches between "{var_names[0]}" and "{var_names[1]}":
+    {match_maker.words_match(var_names[0], var_names[1])}''')
 
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',

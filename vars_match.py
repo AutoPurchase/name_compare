@@ -34,12 +34,12 @@ class MatchMaker:
 
     Synonyms = Plural = None
 
-    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separator='_', separate_by_big_letters=True,
+    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', separate_by_big_letters=True,
                  numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
-        self.word_separator = word_separator    # the CURRENT separator between the words in the variables.
+        self.word_separators = word_separators    # Characters THE USER used for separating between words in the variables
         self.separate_by_big_letters = separate_by_big_letters
         self.numbers_behavior = numbers_behavior
         self.literal_comparison = literal_comparison
@@ -48,11 +48,9 @@ class MatchMaker:
 
     def set_name_1(self, name):
         self.var_1 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_2))
-        # self.var_2.set_separator(self._find_separator(name))
 
     def set_name_2(self, name):
         self.var_2 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_1))
-        # self.var_1.set_separator(self._find_separator(name))
 
     def set_names(self, name_1, name_2):
         if name_1 is not None:
@@ -64,8 +62,8 @@ class MatchMaker:
     def set_case_sensitivity(self, case_sensitivity):
         self.case_sensitivity = case_sensitivity
 
-    def set_word_separator(self, word_separator):
-        self.word_separator = word_separator
+    def set_word_separators(self, word_separators):
+        self.word_separators = word_separators
 
     def set_literal_comparison(self, literal_comparison):
         self.literal_comparison = literal_comparison
@@ -74,22 +72,22 @@ class MatchMaker:
         if self.literal_comparison:
             return [name]
 
-        name = re.sub(f'[^0-9A-Za-z{self.word_separator}]', self.word_separator, name)
+        name = re.sub(f'[^0-9A-Za-z{self.word_separators}]', self.word_separators[0], name)
 
         if self.separate_by_big_letters:
-            name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separator}\2', name)
-            name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separator}\2', name)
+            name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
+            name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separators[0]}\2', name)
 
             if self.numbers_behavior == MatchMaker.NUMBERS_SEPARATE_WORD:
-                name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separator}\2', name)
-                name = re.sub('([0-9])([a-z])', fr'\1{self.word_separator}\2', name)
+                name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separators[0]}\2', name)
+                name = re.sub('([0-9])([a-z])', fr'\1{self.word_separators[0]}\2', name)
             elif self.numbers_behavior == MatchMaker.NUMBERS_IGNORE:
                 name = re.sub('[0-9]', '', name)
 
         if not self.case_sensitivity:
             name = name.lower()
 
-        return list(filter(None, name.split(self.word_separator)))
+        return list(filter(None, name.split(self.word_separators)))
 
     @staticmethod
     def _find_separator(name, other_var):
@@ -108,47 +106,6 @@ class MatchMaker:
 
     def match(self):
         return SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
-
-    # @staticmethod
-    # def _get_not_exist_char_separator(name):
-    #     for i in range(0x20, 0x100):
-    #         if (c := chr(i)) not in name:
-    #             return c
-    #     raise Exception(f'Error: illegal characters in the name: {name}')
-    #
-    # def _get_char_separators(self):
-    #     separator_1 = MatchMaker.SEPARATOR_1
-    #     separator_2 = MatchMaker.SEPARATOR_2
-    #
-    #     if separator_1 in self.var_2.name:
-    #         separator_1 = self._get_not_exist_char_separator(self.var_2.name)
-    #     if separator_2 in self.var_1.name:
-    #         separator_2 = self._get_not_exist_char_separator(self.var_1.name)
-    #
-    #     return separator_1, separator_2
-    #
-    # @staticmethod
-    # def get_not_exist_word_separator(name, separator_char):
-    #     separator = separator_char
-    #     while separator in name:
-    #         separator += separator_char
-    #     return separator
-    #
-    # def _get_word_separators(self):
-    #     separator_1 = MatchMaker.SEPARATOR_1
-    #     separator_2 = MatchMaker.SEPARATOR_2
-    #
-    #     if separator_1 in self.var_2.name:
-    #         separator_1 = self.get_not_exist_word_separator(self.var_2.name, separator_1)
-    #     if separator_2 in self.var_1.name:
-    #         separator_2 = self.get_not_exist_word_separator(self.var_1.name, separator_2)
-    #
-    #     return separator_1, separator_2
-
-    # @staticmethod
-    # def _replace_matches_by_separators(var_1_str, var_2_str, i, j, k, separator_1, separator_2):
-    #     return var_1_str[:i] + separator_1 * k + var_1_str[i+k:], \
-    #            var_2_str[:j] + separator_2 * k + var_2_str[j+k:]
 
     def all_match(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
@@ -173,10 +130,6 @@ class MatchMaker:
             sm.update_matching_seq2(name_2, j, k)
 
         return 2 * match_len / (len_1 + len_2)
-
-    def remove_matches(self, var_1_str, var_2_str, i, j, k):
-        return var_1_str[:i] + var_1_str[i+k:], \
-               var_2_str[:j] + var_2_str[j+k:]
 
     def unedit_match(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
@@ -282,7 +235,6 @@ class MatchMaker:
 
         return matching_blocks
 
-
     def _words_and_meaning_match(self, min_word_match_degree, order_change_penalty, prefer_num_of_letters, meaning):
         matching_blocks = self.calc_matching_blocks(min_word_match_degree, prefer_num_of_letters, meaning)
         num_of_match_blocks = len(matching_blocks)
@@ -310,7 +262,12 @@ class MatchMaker:
                                              meaning=True)
 
 
-
+def run_test(match_maker, pairs, func, **kwargs):
+    for var_1, var_2 in pairs:
+        match_maker.set_names(var_1, var_2)
+        print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
+              f'{" ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
+    print()
 
 if __name__ == '__main__':
     set_bit = lambda bit, num=0: num | (1 << bit)
@@ -327,52 +284,39 @@ if __name__ == '__main__':
 
     match_maker = MatchMaker()
 
+
     if scriptIndex & TEST_EDIT_DISTANCE:
-        var_names = ['CA', 'ABC']
-        print(f'''Edit distanse between "{var_names[0]}" and "{var_names[1]}":
-    Without swapping: {match_maker.set_names(var_names[0], var_names[1]).edit_distance()}
-    With swapping: {match_maker.set_names(var_names[0], var_names[1]).edit_distance(enable_transposition=True)}''')
+        var_names = [('CA', 'ABC')]
+        run_test(match_maker, var_names, match_maker.edit_distance)
+        run_test(match_maker, var_names, match_maker.edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_NORMALIZED_EDIT_DISTANCE:
-        var_names = ['CA', 'ABC']
-        print(f'''Normalized edit distanse between "{var_names[0]}" and "{var_names[1]}":
-    Without swapping: {match_maker.set_names(var_names[0], var_names[1]).edist()}
-    With swapping: {match_maker.set_names(var_names[0], var_names[1]).edist(enable_transposition=True)}''')
+        var_names = [('CA', 'ABC')]
+        run_test(match_maker, var_names, match_maker.edist)
+        run_test(match_maker, var_names, match_maker.edist, enable_transposition=True)
 
     if scriptIndex & TEST_SEQUENCE_MATCHER_RATIO:
-        var_names = ['AB_CD_EF', 'EF_CD_AB']
-        print(f'''Sequence Matcher between "{var_names[0]}" and "{var_names[1]}":
-    {match_maker.set_names(var_names[0], var_names[1]).match()}''')
+        var_names = [('AB_CD_EF', 'EF_CD_AB')]
+        run_test(match_maker, var_names, match_maker.match)
 
     if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
-        var_names = ['A_CD_EF_B', 'A_EF_CD_B']
-        print(f'''All matches between "{var_names[0]}" and "{var_names[1]}":
-    {match_maker.set_names(var_names[0], var_names[1]).all_match()}''')
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
+        run_test(match_maker, var_names, match_maker.all_match)
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
-        var_names = ['A_CD_EF_B', 'A_EF_CD_B']
-        print(f'''Unedit matches between "{var_names[0]}" and "{var_names[1]}":
-    {match_maker.set_names(var_names[0], var_names[1]).unedit_match()}''')
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
+        run_test(match_maker, var_names, match_maker.unedit_match)
 
     if scriptIndex & TEST_WARDS_MATCH:
-        var_names = ['TheSchoolBusIsYellow', 'YellowIsSchoolBosColor']
-        print(f'''Word matches between "{var_names[0]}" and "{var_names[1]} while min_word_match_degree=1":
-    {match_maker.set_names(var_names[0], var_names[1]).words_match()}''')
-        print(f'''Word matches between "{var_names[0]}" and "{var_names[1]} while min_word_match_degree=2/3":
-    {match_maker.set_names(var_names[0], var_names[1]).words_match(min_word_match_degree=2/3)}''')
-        var_names = ['TheSchoolBusIsYellow', 'TheSchooolBosIsYellow']
-        print(f'''Word matches between "{var_names[0]}" and "{var_names[1]} while min_word_match_degree=2/3":
-    {match_maker.set_names(var_names[0], var_names[1]).words_match(min_word_match_degree=2/3)}''')
-
-        var_names = ['multiply_digits_exponent', 'multiply_digits_power']
-        print(f'''Word matches between "{var_names[0]}" and "{var_names[1]}":
-    {match_maker.set_names(var_names[0], var_names[1]).words_match()}''')
+        var_names = [('TheSchoolBusIsYellow', 'YellowIsSchoolBosColor'),
+                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+                     ('multiply_digits_exponent', 'multiply_digits_power')]
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
 
     if scriptIndex & TEST_MEANING_MATCH:
-        var_names = ['multiply_digits_exponent', 'multiply_digits_power']
-        print(f'''Meaning matches between "{var_names[0]}" and "{var_names[1]}":
-    {match_maker.set_names(var_names[0], var_names[1]).semantic_match()}''')
-
+        var_names = [('multiply_digits_exponent', 'multiply_digits_power')]
+        run_test(match_maker, var_names, match_maker.semantic_match)
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',
     #           'Data_Print_Gui','Data_Gui_Print','Printing_Gui_Data','Print_Data',

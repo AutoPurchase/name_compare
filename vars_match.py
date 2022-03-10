@@ -159,8 +159,13 @@ class MatchMaker:
             if cls.Synonyms is None:
                 cls.Synonyms, cls.Plural = get_synonyms_plural_df()
 
-            if word_2 in cls.Synonyms.get(word_1, []) \
-                    or word_1 in cls.Synonyms.get(word_2, []):
+            syn_word_1 = set(cls.Synonyms.get(word_1, []) + \
+                         cls.Synonyms.get(word_1.rstrip('s'), []) + cls.Synonyms.get(word_1.rstrip('es'), []))
+            syn_word_2 = set(cls.Synonyms.get(word_2, []) + \
+                         cls.Synonyms.get(word_2.rstrip('s'), []) + cls.Synonyms.get(word_2.rstrip('es'), []))
+
+            if len({word_2, word_2.rstrip('s'), word_2.rstrip('es')}.intersection(syn_word_1)) > 0 or \
+               len({word_1, word_1.rstrip('s'), word_1.rstrip('es')}.intersection(syn_word_2)) > 0:
                 return 1, True
             elif word_2 == cls.Plural.get(word_1) \
                     or word_1 == cls.Plural.get(word_2):
@@ -266,7 +271,7 @@ def run_test(match_maker, pairs, func, **kwargs):
     for var_1, var_2 in pairs:
         match_maker.set_names(var_1, var_2)
         print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
-              f'{" ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
+              f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
     print()
 
 if __name__ == '__main__':
@@ -301,22 +306,44 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.all_match)
+        run_test(match_maker, var_names, match_maker.all_match, min_len=2)
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
         run_test(match_maker, var_names, match_maker.unedit_match)
 
     if scriptIndex & TEST_WARDS_MATCH:
-        var_names = [('TheSchoolBusIsYellow', 'YellowIsSchoolBosColor'),
-                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+        var_names = [('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+                     ('multiply_digits_exponent', 'multiply_digits_power'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
                      ('multiply_digits_exponent', 'multiply_digits_power')]
         run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
+
+        var_names = [('TheSchoolBusIsYellow', 'YellowIsSchoolBosColor'),
+                     ('TheSchoolBusIsYellow', 'YellowIsSchoolBus'),
+                     ('TheWhiteHouse', 'TheHouseIsWhite')]
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, order_change_penalty=0.04)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, order_change_penalty=0.1)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, order_change_penalty=0.04)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, order_change_penalty=0.1)
+
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, order_change_penalty=0.04, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, order_change_penalty=0.1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, order_change_penalty=0.04, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, order_change_penalty=0.1, prefer_num_of_letters=True)
 
     if scriptIndex & TEST_MEANING_MATCH:
-        var_names = [('multiply_digits_exponent', 'multiply_digits_power')]
-        run_test(match_maker, var_names, match_maker.semantic_match)
+        var_names = [('multiply_digits_exponent', 'multiply_digits_power'),
+                     ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom')]
+        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
 
     # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',
     #           'Data_Print_Gui','Data_Gui_Print','Printing_Gui_Data','Print_Data',

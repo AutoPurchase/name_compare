@@ -34,13 +34,13 @@ class MatchMaker:
 
     Synonyms = Plural = None
 
-    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', separate_by_big_letters=True,
+    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', support_camel_case=True,
                  numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
         self.word_separators = word_separators    # Characters THE USER used for separating between words in the variables
-        self.separate_by_big_letters = separate_by_big_letters
+        self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
         self.literal_comparison = literal_comparison
 
@@ -74,7 +74,7 @@ class MatchMaker:
 
         name = re.sub(f'[^0-9A-Za-z{self.word_separators}]', self.word_separators[0], name)
 
-        if self.separate_by_big_letters:
+        if self.support_camel_case:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
             name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separators[0]}\2', name)
 
@@ -100,14 +100,14 @@ class MatchMaker:
         return ed.eval(self.var_1.norm_name, self.var_2.norm_name) \
             if not enable_transposition else Damerau().distance(self.var_1.norm_name, self.var_2.norm_name)
 
-    def edist(self, enable_transposition=False):
+    def normalized_edit_distance(self, enable_transposition=False):
         return self.edit_distance(enable_transposition) \
                / max(len(self.var_1.norm_name), len(self.var_2.norm_name))
 
-    def match(self):
+    def difflib_seq_match_ratio(self):
         return SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
 
-    def all_match(self, min_len=2):
+    def match_ratio(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
         len_1 = len(name_1)
@@ -274,6 +274,7 @@ def run_test(match_maker, pairs, func, **kwargs):
               f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
     print()
 
+
 if __name__ == '__main__':
     set_bit = lambda bit, num=0: num | (1 << bit)
 
@@ -291,26 +292,32 @@ if __name__ == '__main__':
 
 
     if scriptIndex & TEST_EDIT_DISTANCE:
-        var_names = [('CA', 'ABC')]
+        var_names = [('CA', 'ABC'), ('TotalArraySize', 'ArrayTotalSize')]
         run_test(match_maker, var_names, match_maker.edit_distance)
         run_test(match_maker, var_names, match_maker.edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_NORMALIZED_EDIT_DISTANCE:
         var_names = [('CA', 'ABC')]
-        run_test(match_maker, var_names, match_maker.edist)
-        run_test(match_maker, var_names, match_maker.edist, enable_transposition=True)
+        run_test(match_maker, var_names, match_maker.normalized_edit_distance)
+        run_test(match_maker, var_names, match_maker.normalized_edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_SEQUENCE_MATCHER_RATIO:
-        var_names = [('AB_CD_EF', 'EF_CD_AB')]
-        run_test(match_maker, var_names, match_maker.match)
+        var_names = [('AB_CD_EF', 'EF_CD_AB'), ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire')]
+        run_test(match_maker, var_names, match_maker.difflib_seq_match_ratio)
 
     if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
-        var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.all_match, min_len=2)
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B'), ('FirstLightAFire', 'LightTheFireFirst'),
+                     ('LightTheFireFirst', 'FirstLightAFire'), ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'),
+                     ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
+        run_test(match_maker, var_names, match_maker.match_ratio, min_len=2)
+
+        var_names = [('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA')]
+        run_test(match_maker, var_names, match_maker.match_ratio, min_len=1)
+
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.unedit_match)
+        run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)
 
     if scriptIndex & TEST_WARDS_MATCH:
         var_names = [('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),

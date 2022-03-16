@@ -4,9 +4,7 @@ import re
 from modificated_difflib import SequenceMatcher
 import editdistance as ed
 from strsimpy.damerau import Damerau
-# from divide_to_words import Variable
 import pandas as pd
-from itertools import chain
 
 SYNONYMS_PLURAL_PATH = abspath(join(dirname(__file__), r'synonyms_and_plural.csv'))
 
@@ -47,10 +45,10 @@ class MatchMaker:
         self.set_names(name_1, name_2)
 
     def set_name_1(self, name):
-        self.var_1 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_2))
+        self.var_1 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_2, '?'))
 
     def set_name_2(self, name):
-        self.var_2 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_1))
+        self.var_2 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_1, '!'))
 
     def set_names(self, name_1, name_2):
         if name_1 is not None:
@@ -72,7 +70,7 @@ class MatchMaker:
         if self.literal_comparison:
             return [name]
 
-        name = re.sub(f'[^0-9A-Za-z{self.word_separators}]', self.word_separators[0], name)
+        name = re.sub(f'[^ -~]', self.word_separators[0], name) # remove all non-visible characters
 
         if self.support_camel_case:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
@@ -90,11 +88,10 @@ class MatchMaker:
         return list(filter(None, name.split(self.word_separators)))
 
     @staticmethod
-    def _find_separator(name, other_var):
-        for i in range(0x21, 0x80):
+    def _find_separator(name, other_var, default_sep):
+        for i in [ord(default_sep)] + list(range(0x21, 0x80)):
             if (c := chr(i)) not in name and (other_var is None or c != other_var.separator):
                 return c
-        raise Exception(f'Error: illegal characters in the name: {name}')
 
     def edit_distance(self, enable_transposition=False):
         return ed.eval(self.var_1.norm_name, self.var_2.norm_name) \
@@ -107,7 +104,61 @@ class MatchMaker:
     def difflib_seq_match_ratio(self):
         return SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
 
-    def match_ratio(self, min_len=2):
+    def calc_max_matches(self, str_1_len, str_2_len, str_1_start, str_2_start, min_len,
+                         sequence_matcher, ratio_table):
+        str_1_end = str_1_start + str_1_len + 1
+        str_2_end = str_2_start + str_2_len + 1
+
+        matches = []
+        max_matches = 0
+
+        i, j, k = match = sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
+
+        if (longest_match_len := k) < min_len:
+            return 0
+
+        aux_sequence_matcher = SequenceMatcher()
+        str_1 = self.var_1.norm_name[:]
+        str_2 = self.var_2.norm_name[:]
+
+        while match[2] == longest_match_len:
+            matches.append(match)
+
+            str_1 = str_1[:i] + self.var_2.separator * k + str_1[i + k:]
+            str_2 = str_2[:j] + self.var_1.separator * k + str_2[j + k:]
+            aux_sequence_matcher.set_seq1(str_1)
+            aux_sequence_matcher.update_matching_seq2(str_2, j, k)
+            i, j, k = match = aux_sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
+
+        for i, j, k in matches:
+            left_max_ratio = 0 if i == str_1_start or j == str_2_start \
+                else ratio_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start]
+            right_max_ratio = 0 if i + k == str_1_end or j + k == str_2_end \
+                else ratio_table[str_1_end - (i + k) - 1][str_2_end - (j + k) - 1][i + k][j + k]
+
+            if (curr_match_ratio := k + left_max_ratio + right_max_ratio) > max_matches:
+                max_matches = curr_match_ratio
+
+        return max_matches
+
+    def ordered_match_ratio(self, min_len=2):
+        len_1 = len(self.var_1.norm_name)
+        len_2 = len(self.var_2.norm_name)
+        sequence_matcher = SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)
+
+        ratio_table = [[[[0 for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
+                        for str_2_len in range(len_2)] for str_1_len in range(len_1)]
+
+        for str_1_len in range(len_1):      # Actually the length is plus one
+            for str_2_len in range(len_2):  # Actually the length is plus one
+                for str_1_start in range(len_1 - str_1_len):
+                    for str_2_start in range(len_2 - str_2_len):
+                        ratio_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_matches(
+                            str_1_len, str_2_len, str_1_start, str_2_start, min_len, sequence_matcher, ratio_table)
+
+        return (2 * ratio_table[-1][-1][-1][-1] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0
+
+    def unordered_match_ratio(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
         len_1 = len(name_1)
@@ -280,11 +331,12 @@ if __name__ == '__main__':
 
     TEST_EDIT_DISTANCE = set_bit(0)
     TEST_NORMALIZED_EDIT_DISTANCE = set_bit(1)
-    TEST_SEQUENCE_MATCHER_RATIO = set_bit(2)
-    TEST_SEQUENCE_ALL_MATCHES_RATIO = set_bit(3)
-    TEST_SEQUENCE_UNEDIT_MATCHES_RATIO = set_bit(4)
-    TEST_WARDS_MATCH = set_bit(5)
-    TEST_MEANING_MATCH = set_bit(6)
+    TEST_DIFFLIB_MATCHER_RATIO = set_bit(2)
+    TEST_SEQUENCE_ALL_ORDERED_MATCHES_RATIO = set_bit(3)
+    TEST_SEQUENCE_UNORDERED_MATCHES_RATIO = set_bit(4)
+    TEST_SEQUENCE_UNEDIT_MATCHES_RATIO = set_bit(5)
+    TEST_WARDS_MATCH = set_bit(6)
+    TEST_MEANING_MATCH = set_bit(7)
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
 
@@ -301,18 +353,22 @@ if __name__ == '__main__':
         run_test(match_maker, var_names, match_maker.normalized_edit_distance)
         run_test(match_maker, var_names, match_maker.normalized_edit_distance, enable_transposition=True)
 
-    if scriptIndex & TEST_SEQUENCE_MATCHER_RATIO:
+    if scriptIndex & TEST_DIFFLIB_MATCHER_RATIO:
         var_names = [('AB_CD_EF', 'EF_CD_AB'), ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire')]
         run_test(match_maker, var_names, match_maker.difflib_seq_match_ratio)
 
-    if scriptIndex & TEST_SEQUENCE_ALL_MATCHES_RATIO:
+    if scriptIndex & TEST_SEQUENCE_ALL_ORDERED_MATCHES_RATIO:
+        var_names = [('AB_CD_EF', 'EF_CD_AB'), ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire')]
+        run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=2)
+
+    if scriptIndex & TEST_SEQUENCE_UNORDERED_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B'), ('FirstLightAFire', 'LightTheFireFirst'),
                      ('LightTheFireFirst', 'FirstLightAFire'), ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'),
                      ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
-        run_test(match_maker, var_names, match_maker.match_ratio, min_len=2)
+        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=2)
 
         var_names = [('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA')]
-        run_test(match_maker, var_names, match_maker.match_ratio, min_len=1)
+        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=1)
 
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
@@ -351,39 +407,3 @@ if __name__ == '__main__':
         run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
         run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
         run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
-
-    # vnames = ['Print_Gui_Data','Print_Data_Gui','Gui_Print_Data','Gui_Data_Print',
-    #           'Data_Print_Gui','Data_Gui_Print','Printing_Gui_Data','Print_Data',
-    #           'Gui_Print']
-    # vnames = ['TheSchoolBusIsYellow', 'TheSchoolBosIsYellow', 'SchoolBusIsYellow', 'YellowIsSchoolBus', 'YellowIsSchoolBusColor',
-    #           'TookBusToSchool', 'TookBusToSchoool', 'PrintGuiData']
-    # vnames = ['of_num_sum_to_target', 'sum_of_index', 'index_sum_of', 'Calculate_complementary_indices',
-    #           'indices_Calculate_complementary', 'sum_index_target', 'index_sum_target', 'Sum_indices',
-    #           'indices_Sum', 'slices_val_indices_', 'indices_slices_val_', 'find_indices_sum_target',
-    #           'indices_sum_find_target', 'diff_squares_sum', 'sum_squares_diff', 'Calc_squares_sum_diff',
-    #           'Calc_diff_sum_squares', 'diff_of_square', 'of_square_diff', 'square_sum_diff', 'diff_sum_square',
-    #           'sum_square_diff', 'calc_diff_squares', 'calc_squares_diff',
-    #           'multiply_digits_exponent', 'multiply_exponent_digits',
-    #           'num_exp_sum', 'sum_exp_num', 'Sum_of_exp', 'of_exp_Sum', 'Exp_sum_digits', 'sum_Exp_digits',
-    #           'digits_sum', 'sum_digits', '2_n_sum_digits', 'sum_2_n_digits', 'sum_digits_power', 'sum_power_digits',
-    #           'exponent_sum', 'sum_exponent', 'power_sum', 'sum_power']
-    #
-    # # synonyms_df = get_synonyms_plural_df()
-    # synonyms, plural = get_synonyms_plural_df()
-    #
-    # for a in range(len(vnames)):
-    #     for b in range(a, len(vnames)):
-    #         a_words = Variable(vnames[a]).get_words()
-    #         b_words = Variable(vnames[b]).get_words()
-    #
-    #         s = MatchMaker(a_words, b_words)
-    #         s.calc_matching_blocks()
-    #
-    #         print(f'{a+1}.{b+1}.\na="{vnames[a]}"\nb="{vnames[b]}"\nSimilarity Score: {s.calc_similarity_score()}')
-    #
-    #         for (i, j, k, d) in s.get_matching_blocks():
-    #             print(f'''\
-    # a[{i}] and b[{j}] match for {k} elements with distance {d}:
-    #     {a_words[i:i+k]}
-    #     {b_words[j:j+k]}''')
-    #         print('\n', end='')

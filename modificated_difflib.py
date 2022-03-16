@@ -335,6 +335,10 @@ class SequenceMatcher:
                 del b2j[elt]
 
     def update_matching_seq2(self, b, j, k):
+        if self.b == '':
+            self.set_seq2(b)
+            return
+
         if b is self.b:
             return
         self.__update_chain_b(b, j, k)

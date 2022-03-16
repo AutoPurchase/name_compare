@@ -1,7 +1,7 @@
 import sys
 from os.path import abspath, dirname, join
 import re
-from modificated_difflib import SequenceMatcher
+from extended_difflib import ExtendedSequenceMatcher
 import editdistance as ed
 from strsimpy.damerau import Damerau
 import pandas as pd
@@ -102,7 +102,7 @@ class MatchMaker:
                / max(len(self.var_1.norm_name), len(self.var_2.norm_name))
 
     def difflib_seq_match_ratio(self):
-        return SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
+        return ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
 
     def calc_max_matches(self, str_1_len, str_2_len, str_1_start, str_2_start, min_len,
                          sequence_matcher, ratio_table):
@@ -117,7 +117,7 @@ class MatchMaker:
         if (longest_match_len := k) < min_len:
             return 0
 
-        aux_sequence_matcher = SequenceMatcher()
+        aux_sequence_matcher = ExtendedSequenceMatcher()
         str_1 = self.var_1.norm_name[:]
         str_2 = self.var_2.norm_name[:]
 
@@ -144,7 +144,7 @@ class MatchMaker:
     def ordered_match_ratio(self, min_len=2):
         len_1 = len(self.var_1.norm_name)
         len_2 = len(self.var_2.norm_name)
-        sequence_matcher = SequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)
+        sequence_matcher = ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)
 
         ratio_table = [[[[0 for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
                         for str_2_len in range(len_2)] for str_1_len in range(len_1)]
@@ -167,7 +167,7 @@ class MatchMaker:
         # matching_blocks = []
         match_len = 0
 
-        sm = SequenceMatcher(a=name_1, b=name_2)
+        sm = ExtendedSequenceMatcher(a=name_1, b=name_2)
         while True:
             i, j, k = x = sm.find_longest_match(0, len_1, 0, len_2)
             if k < min_len:
@@ -187,7 +187,7 @@ class MatchMaker:
         name_2 = self.var_2.norm_name[:]
 
         match_len = 0
-        sm = SequenceMatcher(a=name_1, b=name_2)
+        sm = ExtendedSequenceMatcher(a=name_1, b=name_2)
         while True:
             i, j, k = sm.find_longest_match(0, len(name_1), 0, len(name_2))
 

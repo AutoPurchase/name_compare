@@ -89,8 +89,11 @@ class MatchMaker:
 
     @staticmethod
     def _find_separator(name, other_var, default_sep):
-        for i in [ord(default_sep)] + list(range(0x21, 0x80)):
-            if (c := chr(i)) not in name and (other_var is None or c != other_var.separator):
+        if (sep_condition := lambda x: x not in name and (other_var is None or x != other_var.separator))(default_sep):
+            return default_sep
+
+        for i in range(0x21, 0x80):
+            if sep_condition(c := chr(i)):
                 return c
 
     def edit_distance(self, enable_transposition=False):
@@ -354,18 +357,25 @@ if __name__ == '__main__':
         run_test(match_maker, var_names, match_maker.normalized_edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_DIFFLIB_MATCHER_RATIO:
-        var_names = [('AB_CD_EF', 'EF_CD_AB'), ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire')]
+        var_names = [('AB_CD_EF', 'EF_CD_AB'),
+                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire')]
         run_test(match_maker, var_names, match_maker.difflib_seq_match_ratio)
 
     if scriptIndex & TEST_SEQUENCE_ALL_ORDERED_MATCHES_RATIO:
-        var_names = [('AB_CD_EF', 'EF_CD_AB'), ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire')]
-        run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=2)
+        var_names = [('AB_CD_EF', 'EF_CD_AB'),
+                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire')]
+        # run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=2)
+        run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=1)
 
     if scriptIndex & TEST_SEQUENCE_UNORDERED_MATCHES_RATIO:
-        var_names = [('A_CD_EF_B', 'A_EF_CD_B'), ('FirstLightAFire', 'LightTheFireFirst'),
-                     ('LightTheFireFirst', 'FirstLightAFire'), ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'),
-                     ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
-        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=2)
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B'),
+                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                     ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
+        # run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=2)
+        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=1)
 
         var_names = [('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA')]
         run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=1)

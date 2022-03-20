@@ -144,7 +144,7 @@ class MatchMaker:
 
         return max_matches
 
-    def ordered_match_ratio(self, min_len=2):
+    def ordered_match_ratio(self, min_len=1):
         len_1 = len(self.var_1.norm_name)
         len_2 = len(self.var_2.norm_name)
         sequence_matcher = ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)

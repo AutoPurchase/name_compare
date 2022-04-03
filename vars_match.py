@@ -264,13 +264,11 @@ class MatchMaker:
                         l > most_of_letters or
                         l == most_of_letters and (d < shortest_distance or
                                                   (d == shortest_distance and k > longest_len))):
+                        longest_idx_1 = i
+                        longest_idx_2 = j
                         longest_len = k
                         shortest_distance = d
                         most_of_letters = l
-
-                        if k == 1:
-                            longest_idx_1 = i
-                            longest_idx_2 = j
                 else:
                     if i+k < len_a and j+k < len_b:
                         checked_points[(i+k, j+k)] = False

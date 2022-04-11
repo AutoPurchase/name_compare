@@ -257,8 +257,7 @@ class MatchMaker:
                         distance = meaning_distance
                     else:
                         distance = cls.words_distance(var_1_list[i + k], var_2_list[j + k])
-                        if distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) > \
-                                     (1 - min_word_match_degree):
+                        if distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) > (1 - min_word_match_degree):
                             checked_points[(i + k, j + k)] = False
                             break
 

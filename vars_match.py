@@ -392,23 +392,16 @@ if __name__ == '__main__':
         run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)
 
     if scriptIndex & TEST_WARDS_MATCH:
-        var_names = [('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+        var_names = [('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
+                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow')]
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
+
+        var_names = [('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
                      ('multiply_digits_exponent', 'multiply_digits_power'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
-                     ('multiply_digits_exponent', 'multiply_digits_power')]
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
-
-        var_names = [('TheSchoolBusIsYellow', 'YellowIsSchoolBosColor'),
-                     ('TheSchoolBusIsYellow', 'YellowIsSchoolBus'),
                      ('TheWhiteHouse', 'TheHouseIsWhite')]
         run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
-
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
 
     if scriptIndex & TEST_MEANING_MATCH:
         var_names = [('multiply_digits_exponent', 'multiply_digits_power'),

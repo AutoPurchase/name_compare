@@ -299,32 +299,31 @@ class MatchMaker:
 
         return matching_blocks
 
-    def _words_and_meaning_match(self, min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
+    def _words_and_meaning_match(self, min_word_match_degree, prefer_num_of_letters,
                                  meaning, meaning_distance=1):
         matching_blocks = self.calc_matching_blocks(min_word_match_degree, prefer_num_of_letters, meaning, meaning_distance)
-        num_of_match_blocks = len(matching_blocks)
 
         num_of_match_words = 0
+        num_of_match_spaces = 0
         ratio_match_letters_vs_letters = 1
 
         for (i, j, k, d) in matching_blocks:
             num_of_match_words += k
+            num_of_match_spaces += k -1
             max_letters_in_block = max(sum(len(w) for w in self.var_1.words[i:i+k]),
                                        sum(len(w) for w in self.var_2.words[j:j+k]))
 
             ratio_match_letters_vs_letters *= (max_letters_in_block - d) / max_letters_in_block
 
-        return 2 * num_of_match_words / (len(self.var_1.words) + len(self.var_2.words)) \
-                 * ratio_match_letters_vs_letters \
-                 * pow(1 - discontinuous_penalty, max((num_of_match_blocks - 1) / (num_of_match_words - 1), 0))
+        return (2 * num_of_match_words + 2 * num_of_match_spaces) / \
+               (2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) * ratio_match_letters_vs_letters
 
-    def words_match(self, min_word_match_degree=1, discontinuous_penalty=0.04, prefer_num_of_letters=False):
-        return self._words_and_meaning_match(min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
-                                             meaning=False)
+    def words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, meaning=False)
 
-    def semantic_match(self, min_word_match_degree=1, discontinuous_penalty=0.04, prefer_num_of_letters=False,
+    def semantic_match(self, min_word_match_degree=1, prefer_num_of_letters=False,
                        meaning_distance=1):
-        return self._words_and_meaning_match(min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
 
 
@@ -405,15 +404,11 @@ if __name__ == '__main__':
         var_names = [('TheSchoolBusIsYellow', 'YellowIsSchoolBosColor'),
                      ('TheSchoolBusIsYellow', 'YellowIsSchoolBus'),
                      ('TheWhiteHouse', 'TheHouseIsWhite')]
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, discontinuous_penalty=0.04)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, discontinuous_penalty=0.1)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, discontinuous_penalty=0.04)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, discontinuous_penalty=0.1)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
 
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, discontinuous_penalty=0.04, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, discontinuous_penalty=0.1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, discontinuous_penalty=0.04, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, discontinuous_penalty=0.1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
 
     if scriptIndex & TEST_MEANING_MATCH:
         var_names = [('multiply_digits_exponent', 'multiply_digits_power'),

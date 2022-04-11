@@ -206,32 +206,34 @@ class MatchMaker:
         return 2 * match_len / (len(self.var_1.norm_name) + len(self.var_2.norm_name))
 
     @classmethod
-    def words_distance(cls, word_1, word_2, min_word_match_degree, use_meanings):
-        if word_1 == word_2:
-            return 0, True
-        elif use_meanings:
-            if cls.Synonyms is None:
-                cls.Synonyms, cls.Plural = get_synonyms_plural_df()
+    def words_meaning(cls, word_1, word_2):
+        if cls.Synonyms is None:
+            cls.Synonyms, cls.Plural = get_synonyms_plural_df()
 
-            syn_word_1 = set(cls.Synonyms.get(word_1, []) + \
+        syn_word_1 = set(cls.Synonyms.get(word_1, []) +
                          cls.Synonyms.get(word_1.rstrip('s'), []) + cls.Synonyms.get(word_1.rstrip('es'), []))
-            syn_word_2 = set(cls.Synonyms.get(word_2, []) + \
+        syn_word_2 = set(cls.Synonyms.get(word_2, []) +
                          cls.Synonyms.get(word_2.rstrip('s'), []) + cls.Synonyms.get(word_2.rstrip('es'), []))
 
-            if len({word_2, word_2.rstrip('s'), word_2.rstrip('es')}.intersection(syn_word_1)) > 0 or \
-               len({word_1, word_1.rstrip('s'), word_1.rstrip('es')}.intersection(syn_word_2)) > 0:
-                return 1, True
-            elif word_2 == cls.Plural.get(word_1) \
-                    or word_1 == cls.Plural.get(word_2):
-                return 1, True
+        if len({word_2, word_2.rstrip('s'), word_2.rstrip('es')}.intersection(syn_word_1)) > 0 or \
+           len({word_1, word_1.rstrip('s'), word_1.rstrip('es')}.intersection(syn_word_2)) > 0:
+            return True
+        elif word_2 == cls.Plural.get(word_1) \
+                or word_1 == cls.Plural.get(word_2):
+            return True
 
-        distance = ed.eval(word_1, word_2)  # TODO: enable also Damerau Edit Distance?
-        is_similar = distance / min(len(word_1), len(word_2)) <= (1-min_word_match_degree)
-
-        return distance, is_similar
+        return False
 
     @classmethod
-    def find_longest_match(cls, var_1_list, var_2_list, min_word_match_degree, prefer_num_of_letters, use_meanings):
+    def words_distance(cls, word_1, word_2):
+        if word_1 == word_2:
+            return 0
+
+        return ed.eval(word_1, word_2)
+
+    @classmethod
+    def find_longest_match(cls, var_1_list, var_2_list, min_word_match_degree, prefer_num_of_letters,
+                           use_meanings, meaning_distance):
         longest_len = 0
         longest_idx_1 = None
         longest_idx_2 = None
@@ -244,15 +246,24 @@ class MatchMaker:
 
         for i in range(len_a):
             for j in range(len_b):
-                if checked_points.get((i, j)) is not None:  # Because or the aren't similar, or, if the are similar,
+                if checked_points.get((i, j)) is not None:  # Because or they aren't similar, or, if they are similar,
                     continue                                # they already a part of a longer sequence
 
                 k = d = l = 0   # k: word index, d: distance, l: number of letters
-                while i+k < len_a and j+k < len_b and \
-                        (ed := cls.words_distance(var_1_list[i + k], var_2_list[j + k],
-                                                  min_word_match_degree, use_meanings))[1]:
-                    checked_points[(i+k, j+k)] = True
-                    d += ed[0]
+                while i + k < len_a and j + k < len_b:
+                    if var_1_list[i + k] == var_2_list[j + k]:
+                        distance = 0
+                    elif use_meanings and cls.words_meaning(var_1_list[i + k], var_2_list[j + k]):
+                        distance = meaning_distance
+                    else:
+                        distance = cls.words_distance(var_1_list[i + k], var_2_list[j + k])
+                        if distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) > \
+                                     (1 - min_word_match_degree):
+                            checked_points[(i + k, j + k)] = False
+                            break
+
+                    checked_points[(i + k, j + k)] = True
+                    d += distance
                     l += len(var_1_list[i + k]) + len(var_2_list[j + k])
                     k += 1
 
@@ -269,20 +280,17 @@ class MatchMaker:
                         longest_len = k
                         shortest_distance = d
                         most_of_letters = l
-                else:
-                    if i+k < len_a and j+k < len_b:
-                        checked_points[(i+k, j+k)] = False
 
         return longest_idx_1, longest_idx_2, longest_len, shortest_distance
 
-    def calc_matching_blocks(self, min_word_match_degree, prefer_num_of_letters, use_meanings):
+    def calc_matching_blocks(self, min_word_match_degree, prefer_num_of_letters, use_meanings, meaning_distance):
         modified_var_1 = self.var_1.words.copy()
         modified_var_2 = self.var_2.words.copy()
 
         matching_blocks = []
         while True:
-            i, j, k, d = x = self.find_longest_match(modified_var_1, modified_var_2,
-                                                     min_word_match_degree, prefer_num_of_letters, use_meanings)
+            i, j, k, d = x = self.find_longest_match(modified_var_1, modified_var_2, min_word_match_degree,
+                                                     prefer_num_of_letters, use_meanings, meaning_distance)
             if k == 0:
                 break
 
@@ -292,8 +300,9 @@ class MatchMaker:
 
         return matching_blocks
 
-    def _words_and_meaning_match(self, min_word_match_degree, discontinuous_penalty, prefer_num_of_letters, meaning):
-        matching_blocks = self.calc_matching_blocks(min_word_match_degree, prefer_num_of_letters, meaning)
+    def _words_and_meaning_match(self, min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
+                                 meaning, meaning_distance=1):
+        matching_blocks = self.calc_matching_blocks(min_word_match_degree, prefer_num_of_letters, meaning, meaning_distance)
         num_of_match_blocks = len(matching_blocks)
 
         num_of_match_words = 0
@@ -314,9 +323,10 @@ class MatchMaker:
         return self._words_and_meaning_match(min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
                                              meaning=False)
 
-    def semantic_match(self, min_word_match_degree=1, discontinuous_penalty=0.04, prefer_num_of_letters=False):
+    def semantic_match(self, min_word_match_degree=1, discontinuous_penalty=0.04, prefer_num_of_letters=False,
+                       meaning_distance=1):
         return self._words_and_meaning_match(min_word_match_degree, discontinuous_penalty, prefer_num_of_letters,
-                                             meaning=True)
+                                             meaning=True, meaning_distance=meaning_distance)
 
 
 def run_test(match_maker, pairs, func, **kwargs):

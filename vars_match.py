@@ -112,7 +112,7 @@ class MatchMaker:
         str_1_end = str_1_start + str_1_len + 1
         str_2_end = str_2_start + str_2_len + 1
 
-        matches = []
+        matching_blocks = []
         max_matches = 0
 
         i, j, k = match = sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
@@ -125,7 +125,7 @@ class MatchMaker:
         str_2 = self.var_2.norm_name[:]
 
         while match[2] == longest_match_len:
-            matches.append(match)
+            matching_blocks.append(match)
 
             str_1 = str_1[:i] + self.var_2.separator * k + str_1[i + k:]
             str_2 = str_2[:j] + self.var_1.separator * k + str_2[j + k:]
@@ -133,7 +133,7 @@ class MatchMaker:
             aux_sequence_matcher.update_matching_seq2(str_2, j, k)
             i, j, k = match = aux_sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
 
-        for i, j, k in matches:
+        for i, j, k in matching_blocks:
             left_max_ratio = 0 if i == str_1_start or j == str_2_start \
                 else ratio_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start]
             right_max_ratio = 0 if i + k == str_1_end or j + k == str_2_end \
@@ -167,7 +167,7 @@ class MatchMaker:
         len_1 = len(name_1)
         len_2 = len(name_2)
 
-        # matching_blocks = []
+        matching_blocks = []
         match_len = 0
 
         sm = ExtendedSequenceMatcher(a=name_1, b=name_2)
@@ -176,7 +176,7 @@ class MatchMaker:
             if k < min_len:
                 break
 
-            # matching_blocks.append(x)
+            matching_blocks.append(x)
             match_len += k
             name_1 = name_1[:i] + self.var_2.separator * k + name_1[i + k:]
             name_2 = name_2[:j] + self.var_1.separator * k + name_2[j + k:]
@@ -189,6 +189,10 @@ class MatchMaker:
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
 
+        indices_1 = list(range(len(name_1)))
+        indices_2 = list(range(len(name_2)))
+
+        matching_blocks = []
         match_len = 0
         sm = ExtendedSequenceMatcher(a=name_1, b=name_2)
         while True:
@@ -197,9 +201,12 @@ class MatchMaker:
             if k < min_len:
                 break
 
+            matching_blocks.append((indices_1[i:i+k], indices_2[j:j+k]))
             match_len += k
             name_1 = name_1[:i] + name_1[i+k:]
             name_2 = name_2[:j] + name_2[j+k:]
+            indices_1 = indices_1[:i] + indices_1[i+k:]
+            indices_2 = indices_2[:j] + indices_2[j+k:]
             sm.set_seq1(name_1)
             sm.set_seq2(name_2)
 

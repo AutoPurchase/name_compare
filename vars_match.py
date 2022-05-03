@@ -33,7 +33,7 @@ class MatchMaker:
     Synonyms = Plural = None
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', support_camel_case=True,
-                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False, return_all_matches=True):
+                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False): #, return_all_matches=True):
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
@@ -41,7 +41,7 @@ class MatchMaker:
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
         self.literal_comparison = literal_comparison
-        self.return_all_matches = return_all_matches
+        # self.return_all_matches = return_all_matches
 
         self.set_names(name_1, name_2)
 
@@ -175,6 +175,7 @@ class MatchMaker:
             if (match := ratio_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx][1]) is not None:
                 matching_blocks.append(match)
 
+        return matching_blocks
 
     def ordered_match_ratio(self, min_len=1):
         len_1 = len(self.var_1.norm_name)
@@ -191,10 +192,8 @@ class MatchMaker:
                         ratio_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_matches(
                             str_1_len, str_2_len, str_1_start, str_2_start, min_len, sequence_matcher, ratio_table)
 
-        if not self.return_all_matches:
-            return (2 * ratio_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0
-        else:
-            return self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len)
+        return (2 * ratio_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0, \
+               self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len)
 
     def unordered_match_ratio(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
@@ -218,7 +217,7 @@ class MatchMaker:
             sm.set_seq1(name_1)
             sm.update_matching_seq2(name_2, j, k)
 
-        return 2 * match_len / (len_1 + len_2)
+        return 2 * match_len / (len_1 + len_2), matching_blocks
 
     def unedit_match(self, min_len=2):
         name_1 = self.var_1.norm_name[:]
@@ -245,7 +244,7 @@ class MatchMaker:
             sm.set_seq1(name_1)
             sm.set_seq2(name_2)
 
-        return 2 * match_len / (len(self.var_1.norm_name) + len(self.var_2.norm_name))
+        return 2 * match_len / (len(self.var_1.norm_name) + len(self.var_2.norm_name)), matching_blocks
 
     @classmethod
     def words_meaning(cls, word_1, word_2):
@@ -358,7 +357,8 @@ class MatchMaker:
             ratio_match_letters_vs_letters *= (max_letters_in_block - d) / max_letters_in_block
 
         return (2 * num_of_match_words + 2 * num_of_match_spaces) / \
-               (2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) * ratio_match_letters_vs_letters
+               (2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) * ratio_match_letters_vs_letters, \
+               matching_blocks
 
     def words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, meaning=False)
@@ -367,6 +367,10 @@ class MatchMaker:
                        meaning_distance=1):
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
+
+    def print_matches(self, matching_blocks):
+        for (i, j, k) in matching_blocks:
+            print(f'var_1[{i}:{i+k}], var_2[{j}:{j+k}]: {self.var_1.norm_name[i: i + k]}')
 
 
 def run_test(match_maker, pairs, func, **kwargs):

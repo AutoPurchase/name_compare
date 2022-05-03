@@ -33,7 +33,7 @@ class MatchMaker:
     Synonyms = Plural = None
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', support_camel_case=True,
-                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
+                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False, return_all_matches=True):
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
@@ -41,6 +41,7 @@ class MatchMaker:
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
         self.literal_comparison = literal_comparison
+        self.return_all_matches = return_all_matches
 
         self.set_names(name_1, name_2)
 
@@ -113,12 +114,12 @@ class MatchMaker:
         str_2_end = str_2_start + str_2_len + 1
 
         matching_blocks = []
-        max_matches = 0
+        max_matches = 0, None
 
         i, j, k = match = sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
 
         if (longest_match_len := k) < min_len:
-            return 0
+            return 0, None
 
         aux_sequence_matcher = ExtendedSequenceMatcher()
         str_1 = self.var_1.norm_name[:]
@@ -135,14 +136,45 @@ class MatchMaker:
 
         for i, j, k in matching_blocks:
             left_max_ratio = 0 if i == str_1_start or j == str_2_start \
-                else ratio_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start]
+                else ratio_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start][0]
             right_max_ratio = 0 if i + k == str_1_end or j + k == str_2_end \
-                else ratio_table[str_1_end - (i + k) - 1][str_2_end - (j + k) - 1][i + k][j + k]
+                else ratio_table[str_1_end - (i + k) - 1][str_2_end - (j + k) - 1][i + k][j + k][0]
 
-            if (curr_match_ratio := k + left_max_ratio + right_max_ratio) > max_matches:
-                max_matches = curr_match_ratio
+            if (curr_match_ratio := k + left_max_ratio + right_max_ratio) > max_matches[0]:
+                max_matches = curr_match_ratio, (i, j, k)
 
         return max_matches
+
+    @staticmethod
+    def backtrack_ordered_matches(ratio_table, len_1, len_2, min_len):
+        matching_indices = []
+        matching_blocks = []
+
+        len_1_idx = len_1 - 1
+        len_2_idx = len_2 - 1
+        start_1_idx = 0
+        start_2_idx = 0
+
+        matching_indices.append((len_1_idx, len_2_idx, start_1_idx, start_2_idx))
+        i = 0
+
+        while i < len(matching_indices):
+            len_1_idx, len_2_idx, start_1_idx, start_2_idx = matching_indices[i]
+            x = ratio_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx][1]
+            if x:
+                i, j, k = x
+                if i - start_1_idx >= min_len and j - start_2_idx >= min_len:
+                    matching_indices.append((i - start_1_idx -1, j - start_2_idx -1, start_1_idx, start_2_idx))
+
+                if (str_1_end := start_1_idx + len_1_idx + 1) - (i + k) >= min_len and \
+                   (str_2_end := start_2_idx + len_2_idx + 1) - (j + k) >= min_len:
+                    matching_indices.append((str_1_end - (i + k) - 1, str_2_end - (j + k) - 1, i + k, j + k))
+            i += 1
+
+        for len_1_idx, len_2_idx, start_1_idx, start_2_idx in matching_indices:
+            if (match := ratio_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx][1]) is not None:
+                matching_blocks.append(match)
+
 
     def ordered_match_ratio(self, min_len=1):
         len_1 = len(self.var_1.norm_name)
@@ -159,7 +191,10 @@ class MatchMaker:
                         ratio_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_matches(
                             str_1_len, str_2_len, str_1_start, str_2_start, min_len, sequence_matcher, ratio_table)
 
-        return (2 * ratio_table[-1][-1][-1][-1] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0
+        if not self.return_all_matches:
+            return (2 * ratio_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0
+        else:
+            return self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len)
 
     def unordered_match_ratio(self, min_len=2):
         name_1 = self.var_1.norm_name[:]

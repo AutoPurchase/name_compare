@@ -1,6 +1,7 @@
 import sys
 from os.path import abspath, dirname, join
 import re
+import difflib
 from extended_difflib import ExtendedSequenceMatcher
 import editdistance as ed
 from strsimpy.damerau import Damerau
@@ -236,6 +237,8 @@ class MatchMaker:
                 break
 
             matching_blocks.append((indices_1[i:i+k], indices_2[j:j+k]))
+            # matching_blocks.append((indices_1[i], indices_2[j], k))
+
             match_len += k
             name_1 = name_1[:i] + name_1[i+k:]
             name_2 = name_2[:j] + name_2[j+k:]
@@ -350,7 +353,7 @@ class MatchMaker:
 
         for (i, j, k, d) in matching_blocks:
             num_of_match_words += k
-            num_of_match_spaces += k -1
+            num_of_match_spaces += k - 1
             max_letters_in_block = max(sum(len(w) for w in self.var_1.words[i:i+k]),
                                        sum(len(w) for w in self.var_2.words[j:j+k]))
 
@@ -368,16 +371,32 @@ class MatchMaker:
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
 
-    def print_matches(self, matching_blocks):
-        for (i, j, k) in matching_blocks:
-            print(f'var_1[{i}:{i+k}], var_2[{j}:{j+k}]: {self.var_1.norm_name[i: i + k]}')
+    def results_str(self, matching_result):
+        if isinstance(matching_result, tuple) and len(matching_result) == 2:
+            res = f'{matching_result[0]}\n'
+            for match in matching_result[1]:
+                if len(match) == 4:
+                    i, j, k, d = match
+                    res += f'var_1[{i}:{i+k}], var_2[{j}:{j+k}], length: {k}, diff: {d}:' \
+                           f'\n\t{self.var_1.words[i: i + k]} vs. \n\t{self.var_2.words[j: j + k]}\n'
+                elif len(match) == 3:
+                    i, j, k = (match.a, match.b, match.size) if isinstance(match, difflib.Match) else match
+                    res += f'var_1[{i}:{i+k}], var_2[{j}:{j+k}], length: {k}: \t{self.var_1.norm_name[i: i + k]}\n'
+                elif len(match) == 2:
+                    idxs_1, idxs_2 = match
+                    res += f'var_1{idxs_1}, var_2{idxs_2}, length: {len(idxs_1)}: \t' \
+                           f'{"".join([self.var_1.norm_name[i] for i in idxs_1])}\n'
+        else:
+            res = matching_result
+
+        return res
 
 
 def run_test(match_maker, pairs, func, **kwargs):
     for var_1, var_2 in pairs:
         match_maker.set_names(var_1, var_2)
         print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
-              f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
+              f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{match_maker.results_str(func(**kwargs))}')
     print()
 
 
@@ -393,7 +412,7 @@ if __name__ == '__main__':
     TEST_WARDS_MATCH = set_bit(6)
     TEST_MEANING_MATCH = set_bit(7)
 
-    scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or 0
+    scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or -1
 
     match_maker = MatchMaker()
 

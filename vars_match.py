@@ -11,6 +11,12 @@ SYNONYMS_PLURAL_PATH = abspath(join(dirname(__file__), r'synonyms_and_plural.csv
 
 
 def get_synonyms_plural_df():
+    """
+        Reads the files of synonyms and plurals, and merge them to one Pandas DataFrame.
+    Returns:
+        Pandas DataFrame that for each word contains its synonyms and plurals.
+    """
+
     synonyms_and_plural_df = pd.read_csv(SYNONYMS_PLURAL_PATH).set_index('word')
     synonyms = synonyms_and_plural_df['synonyms'].dropna().apply(lambda x: x.split(',')).to_dict()
     plural = synonyms_and_plural_df['plural'].dropna().apply(lambda x: x.split(',')).to_dict()
@@ -18,15 +24,137 @@ def get_synonyms_plural_df():
 
 
 class Var:
+    """
+        Saves all data about a var
+    """
+
     def __init__(self, name, words, norm_name, separator):
+        """
+        Args:
+            name: raw name
+            words: a list of the normalized name divided to words
+            norm_name: the name in lowercase without spaces
+            separator: A letter that isn't included in THIS name, for using ANOTHER names
+                        (and promised no matching will be with this name)
+        """
+
         self.name = name
         self.words = words
         self.norm_name = norm_name
-        self.separator = separator  # A letter that isn't included in THIS name, for using ANOTHER names
-                                    # (and promised no matching will be with this name)
+        self.separator = separator
 
 
-class MatchMaker:
+class VarMatch:
+    """
+    Saves all the data about one match
+    """
+
+    def __init__(self, i, j, k=None, d=None):
+        """
+        Args:
+            i: match in the first var (if matches must be continuous, it contains the first index of the match, else it
+                contains a list of all the matching indices)
+            j: like i, but in the second var
+            k: length of the match (unused in discontinuous matches)
+            d: different between matches (if imperfect matches is enabled)
+        """
+
+        self.i = i
+        self.j = j
+        self.k = k
+        self.d = d
+
+
+class MatchingBlocks:
+    """
+    saves all the data about matches between two variables.
+    """
+
+    LETTERS_MATCH_TYPE = 0
+    WORDS_MATCH_TYPE = 1
+
+    CONTINUOUS_MATCH = 0
+    DISCONTINUOUS_MATCH = 1
+
+    def __init__(self, a, b, ratio=None, match_type=LETTERS_MATCH_TYPE, cont_type=CONTINUOUS_MATCH):
+        """
+        Args:
+            a: first variable
+            b: second variable
+            ratio: ratio between the variables
+            match_type: if the match is between letters or between words: 0 for letters, and 1 for words
+            cont_type: if the match must be continuous or not. Means, if after a match we can cut it from the text
+                and concatenate the text before it to the text after it, or not.
+        """
+
+        self.a = a
+        self.b = b
+        self.match_type = match_type
+        self.cont_type = cont_type
+        self.ratio = ratio
+        self.matches = []
+
+    def append(self, m):
+        """
+        Add a match to matching list
+        Args:
+            m: a match
+        Returns:
+            None
+        """
+
+        self.matches.append(m)
+
+    def set_ratio(self, ratio):
+        """
+        Set the ratio (float in [0,1]) between the variables
+        Args:
+            ratio: the ratio between the variables
+        Returns:
+            None
+        """
+
+        self.ratio = ratio
+
+    def __str__(self):
+        """
+        Returns:
+            Printable data about the relation between the two variables
+        """
+
+        res = ''
+
+        if self.ratio is not None:
+            res += f'{self.ratio}\n'
+
+        if self.match_type == MatchingBlocks.LETTERS_MATCH_TYPE:
+            text_a = self.a.norm_name
+            text_b = self.b.norm_name
+        else:
+            text_a = self.a.words
+            text_b = self.b.words
+
+        for m in self.matches:
+            if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
+                res += f'var_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}'
+                if m.d is None:
+                    res += f': \t{text_a[m.i: m.i + m.k]}\n'
+                else:
+                    res += f', diff: {m.d}:\n\t{text_a[m.i: m.i + m.k]} vs. \n\t{text_b[m.j: m.j + m.k]}\n'
+            else:
+                res += f'var_1{m.i}, var_2{m.j}, length: {len(m.i)}'
+
+                if m.d is None:
+                    res += f'{"".join([text_a[i] for i in m.i])}\n'
+                else:
+                    res += f', diff: {m.d}:\n\t{"".join([text_a[i] for i in m.i])} vs. \n\t{"".join([text_b[j] for j in m.j])}\n'
+
+
+class VarsMatcher:
+    """
+    A class that finds many types of matches between two variables
+    """
+
     NUMBERS_SEPARATE_WORD = 0
     NUMBERS_IGNORE = 1
     NUMBERS_LEAVE = 1
@@ -34,15 +162,29 @@ class MatchMaker:
     Synonyms = Plural = None
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', support_camel_case=True,
-                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False): #, return_all_matches=True):
+                 numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
+        """
+        Args:
+            name_1: first variable
+            name_2: second variable
+            case_sensitivity: match case sensitivity
+            word_separators: Characters THE USER used for separating between words in the variables (like underscore)
+            support_camel_case: use a capital letter to separate between words
+            numbers_behavior: the behavior with a number in a variable:
+                                    0: for use the number as a different word
+                                    1: for deleting the number
+                                    3: for leaving it to be a part of the word before or after it (or both),
+                                        depend of another separators
+            literal_comparison: use the variable as is
+        """
+
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
-        self.word_separators = word_separators    # Characters THE USER used for separating between words in the variables
+        self.word_separators = word_separators
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
         self.literal_comparison = literal_comparison
-        # self.return_all_matches = return_all_matches
 
         self.set_names(name_1, name_2)
 
@@ -69,6 +211,16 @@ class MatchMaker:
         self.literal_comparison = literal_comparison
 
     def _divide(self, name):
+        """
+        Divide the name to words (depends on the properties defined in the class's members)
+
+        Args:
+            name: variable raw name
+
+        Returns:
+            a list of all the words of the variable
+        """
+
         if self.literal_comparison:
             return [name]
 
@@ -78,10 +230,10 @@ class MatchMaker:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
             name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separators[0]}\2', name)
 
-            if self.numbers_behavior == MatchMaker.NUMBERS_SEPARATE_WORD:
+            if self.numbers_behavior == VarsMatcher.NUMBERS_SEPARATE_WORD:
                 name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separators[0]}\2', name)
                 name = re.sub('([0-9])([a-z])', fr'\1{self.word_separators[0]}\2', name)
-            elif self.numbers_behavior == MatchMaker.NUMBERS_IGNORE:
+            elif self.numbers_behavior == VarsMatcher.NUMBERS_IGNORE:
                 name = re.sub('[0-9]', '', name)
 
         if not self.case_sensitivity:
@@ -91,6 +243,19 @@ class MatchMaker:
 
     @staticmethod
     def _find_separator(name, other_var, default_sep):
+        """
+            After finding a match between the two variables and wanting to find another ones, we have to replace the
+            previous matches with a special character that isn't exists in the other variable. This function finds it.
+
+        Args:
+            name: variable's name
+            other_var: the name of the another variable (if already defined, or None if not)
+            default_sep: preferred separator
+
+        Returns:
+            a separator for this variable
+        """
+
         if (sep_condition := lambda x: x not in name and (other_var is None or x != other_var.separator))(default_sep):
             return default_sep
 
@@ -99,18 +264,62 @@ class MatchMaker:
                 return c
 
     def edit_distance(self, enable_transposition=False):
+        """
+        Calculates the edit distance between self.var_1 and self.var_2 (after normalization)
+
+        Args:
+            enable_transposition: supporting Damerau distance - relating to swap between letters as a one action.
+            For example: the distance between ABC and CA is 2 - swapping A and C, and removing B.
+
+        Returns:
+            The distance value
+        """
+
         return ed.eval(self.var_1.norm_name, self.var_2.norm_name) \
             if not enable_transposition else Damerau().distance(self.var_1.norm_name, self.var_2.norm_name)
 
     def normalized_edit_distance(self, enable_transposition=False):
+        """
+        Calculates the edit distance as the edit_distance function, but normalized to be in the range [0,1]
+        Args:
+            enable_transposition: as at edit_distance function
+
+        Returns:
+            The distance value divided by the length of the longest normalized variable
+        """
+
         return self.edit_distance(enable_transposition) \
                / max(len(self.var_1.norm_name), len(self.var_2.norm_name))
 
     def difflib_seq_match_ratio(self):
+        """
+        Use the ratio of "difflib" library between self.var_1 and self.var_2 (after normalization)
+
+        Returns:
+            The ratio returned by difflib
+        """
+
         return ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
 
     def calc_max_matches(self, str_1_len, str_2_len, str_1_start, str_2_start, min_len,
                          sequence_matcher, ratio_table):
+        """
+        A function that implements dynamic programming methodology for finding for each two substrings of self.var_1 and
+        self.var_2 the longest match that it plus the (smaller) matches in both sides of it will maximizes the total
+        match.
+
+        Args:
+            str_1_len: the length of the substring of self.var_1
+            str_2_len: the length of the substring of self.var_2
+            str_1_start: the start point of the substring of self.var_1
+            str_2_start: the start point of the substring of self.var_2
+            min_len: minimum length to be counted as match
+            sequence_matcher: an instance of ExtendedSequenceMatcher (that inherits difflib.SequenceMatcher)
+            ratio_table: a table that contains all the matches in smaller substrings
+
+        Returns:
+            the maximal match for this substring.
+        """
         str_1_end = str_1_start + str_1_len + 1
         str_2_end = str_2_start + str_2_len + 1
 
@@ -414,7 +623,7 @@ if __name__ == '__main__':
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or -1
 
-    match_maker = MatchMaker()
+    match_maker = VarsMatcher()
 
 
     if scriptIndex & TEST_EDIT_DISTANCE:

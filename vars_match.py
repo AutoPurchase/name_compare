@@ -16,7 +16,6 @@ def get_synonyms_plural_df():
     Returns:
         Pandas DataFrame that for each word contains its synonyms and plurals.
     """
-
     synonyms_and_plural_df = pd.read_csv(SYNONYMS_PLURAL_PATH).set_index('word')
     synonyms = synonyms_and_plural_df['synonyms'].dropna().apply(lambda x: x.split(',')).to_dict()
     plural = synonyms_and_plural_df['plural'].dropna().apply(lambda x: x.split(',')).to_dict()
@@ -27,7 +26,6 @@ class Var:
     """
         Saves all data about a var
     """
-
     def __init__(self, name, words, norm_name, separator):
         """
         Args:
@@ -48,7 +46,6 @@ class VarMatch:
     """
     Saves all the data about one match
     """
-
     def __init__(self, i, j, k=None, d=None):
         """
         Args:
@@ -58,7 +55,6 @@ class VarMatch:
             k: length of the match (unused in discontinuous matches)
             d: different between matches (if imperfect matches is enabled)
         """
-
         self.i = i
         self.j = j
         self.k = k
@@ -69,7 +65,6 @@ class MatchingBlocks:
     """
     saves all the data about matches between two variables.
     """
-
     LETTERS_MATCH_TYPE = 0
     WORDS_MATCH_TYPE = 1
 
@@ -86,7 +81,6 @@ class MatchingBlocks:
             cont_type: if the match must be continuous or not. Means, if after a match we can cut it from the text
                 and concatenate the text before it to the text after it, or not.
         """
-
         self.a = a
         self.b = b
         self.match_type = match_type
@@ -102,7 +96,6 @@ class MatchingBlocks:
         Returns:
             None
         """
-
         self.matches.append(m)
 
     def set_ratio(self, ratio):
@@ -113,7 +106,6 @@ class MatchingBlocks:
         Returns:
             None
         """
-
         self.ratio = ratio
 
     def __str__(self):
@@ -121,7 +113,6 @@ class MatchingBlocks:
         Returns:
             Printable data about the relation between the two variables
         """
-
         res = ''
 
         if self.ratio is not None:
@@ -154,7 +145,6 @@ class VarsMatcher:
     """
     A class that finds many types of matches between two variables
     """
-
     NUMBERS_SEPARATE_WORD = 0
     NUMBERS_IGNORE = 1
     NUMBERS_LEAVE = 1
@@ -177,7 +167,6 @@ class VarsMatcher:
                                         depend of another separators
             literal_comparison: use the variable as is
         """
-
         self.var_1 = None
         self.var_2 = None
         self.case_sensitivity = case_sensitivity
@@ -220,7 +209,6 @@ class VarsMatcher:
         Returns:
             a list of all the words of the variable
         """
-
         if self.literal_comparison:
             return [name]
 
@@ -255,7 +243,6 @@ class VarsMatcher:
         Returns:
             a separator for this variable
         """
-
         if (sep_condition := lambda x: x not in name and (other_var is None or x != other_var.separator))(default_sep):
             return default_sep
 
@@ -265,7 +252,8 @@ class VarsMatcher:
 
     def edit_distance(self, enable_transposition=False):
         """
-        Calculates the edit distance between self.var_1 and self.var_2 (after normalization)
+        Calculates (by calling another libraries functions) the edit distance between self.var_1 and self.var_2
+        (after normalization)
 
         Args:
             enable_transposition: supporting Damerau distance - relating to swap between letters as a one action.
@@ -274,7 +262,6 @@ class VarsMatcher:
         Returns:
             The distance value
         """
-
         return ed.eval(self.var_1.norm_name, self.var_2.norm_name) \
             if not enable_transposition else Damerau().distance(self.var_1.norm_name, self.var_2.norm_name)
 
@@ -298,7 +285,6 @@ class VarsMatcher:
         Returns:
             The ratio returned by difflib
         """
-
         return ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
 
     def calc_max_matches(self, str_1_len, str_2_len, str_1_start, str_2_start, min_len,
@@ -357,6 +343,18 @@ class VarsMatcher:
 
     @staticmethod
     def backtrack_ordered_matches(ratio_table, len_1, len_2, min_len):
+        """
+        Calculates the matches that take part in the maximal ordered matching
+
+        Args:
+            ratio_table: the table that contains all the maximal matches for each subtext in var_a and var_b
+            len_1: length of var_a
+            len_2: length of var_b
+            min_len: minimum length that related as a match
+
+        Returns:
+            a list of all the matches (sorted desc. by their length) involved in the maximal ordered matching.
+        """
         matching_indices = []
         matching_blocks = []
 
@@ -388,6 +386,21 @@ class VarsMatcher:
         return matching_blocks
 
     def ordered_match_ratio(self, min_len=1):
+        """
+        A function that calculates the maximal ordered matches between two variables.
+        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
+        names: 'FirstLightAFire' and 'LightTheFireFirst', it will find at first the match 'first' at the beginning of
+        the first name and at the end of the second name, and then stopping because it saves the order of the matches,
+        and any other match will be AFTER the first one in the first match and BEFORE it in the second name.
+        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
+        then 'Fire' (9 letters total, vs. 5 letter in the difflib library).
+
+        Args:
+            min_len: minimum length of letters that related as a match
+
+        Returns:
+
+        """
         len_1 = len(self.var_1.norm_name)
         len_2 = len(self.var_2.norm_name)
         sequence_matcher = ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)
@@ -406,6 +419,16 @@ class VarsMatcher:
                self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len)
 
     def unordered_match_ratio(self, min_len=2):
+        """
+        A function that calculates match ratio between two names, but doesn't requires order between matches. It means that
+        it could match the first word from the first name to the last in the second name, and, in addition, the second
+        word in the first name to the first word in the second name
+        Args:
+            min_len: minimum length of letters that related as a match
+
+        Returns:
+
+        """
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
         len_1 = len(name_1)
@@ -429,7 +452,18 @@ class VarsMatcher:
 
         return 2 * match_len / (len_1 + len_2), matching_blocks
 
-    def unedit_match(self, min_len=2):
+    def unedit_match_ratio(self, min_len=2):
+        """
+        A function that calculates the ratio between two variables, but after finding a match it removes it from the
+        string, and search again. As a result, if, for example one required min_len to be 2, and the two names will be:
+        'ABCDE' and 'ADEBC', after matching 'BC' both names will be 'ADE', so 'A' will be part of the match in spite of
+        in the original names it isn't a part of a word with at least 2 letters.
+        Args:
+            min_len: minimum length of letters that related as a match
+
+        Returns:
+
+        """
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
 
@@ -460,6 +494,15 @@ class VarsMatcher:
 
     @classmethod
     def words_meaning(cls, word_1, word_2):
+        """
+        A function that check if one word is a synonym or the plural of another
+        Args:
+            word_1: a word
+            word_2: a word
+
+        Returns:
+            True if there is a relationship (synonym or plural) between the two words, False otherwise.
+        """
         if cls.Synonyms is None:
             cls.Synonyms, cls.Plural = get_synonyms_plural_df()
 
@@ -478,7 +521,17 @@ class VarsMatcher:
         return False
 
     @classmethod
-    def words_distance(cls, word_1, word_2):
+    def _words_distance(cls, word_1, word_2):
+        """
+        A function that uses edit_distance library for calculating the edit distance between two words.
+
+        Args:
+            word_1: a word
+            word_2: a word
+
+        Returns:
+            The dit distance value between the two words.
+        """
         if word_1 == word_2:
             return 0
 
@@ -487,6 +540,28 @@ class VarsMatcher:
     @classmethod
     def find_longest_match(cls, var_1_list, var_2_list, min_word_match_degree, prefer_num_of_letters,
                            use_meanings, meaning_distance):
+        """
+        A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
+
+        Args:
+            var_1_list: list of words
+            var_2_list: list of words
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            use_meanings: boolean value that set if to match two words with similar meaning, or not
+            meaning_distance: an float (or probably int) value the set the distance to give to two similar-but-not-equal
+                                words
+
+        Returns:
+            A tuple that contains:
+                - The starting index if the first word in the longest match
+                - The starting index if the second word in the longest match
+                - The length of the match (the number of words in it)
+                - Sum of the distances between all the words in this match
+        """
         longest_len = 0
         longest_idx_1 = None
         longest_idx_2 = None
@@ -509,7 +584,7 @@ class VarsMatcher:
                     elif use_meanings and cls.words_meaning(var_1_list[i + k], var_2_list[j + k]):
                         distance = meaning_distance
                     else:
-                        distance = cls.words_distance(var_1_list[i + k], var_2_list[j + k])
+                        distance = cls._words_distance(var_1_list[i + k], var_2_list[j + k])
                         if distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) > (1 - min_word_match_degree):
                             checked_points[(i + k, j + k)] = False
                             break
@@ -536,6 +611,22 @@ class VarsMatcher:
         return longest_idx_1, longest_idx_2, longest_len, shortest_distance
 
     def calc_matching_blocks(self, min_word_match_degree, prefer_num_of_letters, use_meanings, meaning_distance):
+        """
+            A function that finds all the matches between the words of var_1 and var_2, in In descending order of number
+            of the words or letters.
+        Args:
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            use_meanings: boolean value that set if to match two words with similar meaning, or not
+            meaning_distance: an float (or probably int) value the set the distance to give to two similar-but-not-equal
+                                words
+
+        Returns:
+            List of indices of the matches.
+        """
         modified_var_1 = self.var_1.words.copy()
         modified_var_2 = self.var_2.words.copy()
 
@@ -573,10 +664,39 @@ class VarsMatcher:
                matching_blocks
 
     def words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
+        """
+        A function that calculates the ratio and the matches between the words of var_1 and var_2, but doesn't
+        relate synonyms and plurals as a match.
+        Args:
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+
+        Returns:
+
+        """
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, meaning=False)
 
     def semantic_match(self, min_word_match_degree=1, prefer_num_of_letters=False,
                        meaning_distance=1):
+        """
+
+        A function that calculates the ratio and the matches between the words of var_1 and var_2, and relates synonyms
+        and plurals as a match.
+
+        Args:
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            meaning_distance: a fixed distance for synonyms and plurals
+
+        Returns:
+
+        """
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
 
@@ -663,7 +783,7 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)
+        run_test(match_maker, var_names, match_maker.unedit_match_ratio, min_len=2)
 
     if scriptIndex & TEST_WARDS_MATCH:
         var_names = [('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),

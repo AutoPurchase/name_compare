@@ -65,28 +65,31 @@ class MatchingBlocks:
     """
     saves all the data about matches between two variables.
     """
-    LETTERS_MATCH_TYPE = 0
-    WORDS_MATCH_TYPE = 1
-
     CONTINUOUS_MATCH = 0
     DISCONTINUOUS_MATCH = 1
 
-    def __init__(self, a, b, ratio=None, match_type=LETTERS_MATCH_TYPE, cont_type=CONTINUOUS_MATCH):
+    def __init__(self, a, b, ratio=None, matches=None, 
+                 cont_type=CONTINUOUS_MATCH):
         """
         Args:
             a: first variable
             b: second variable
             ratio: ratio between the variables
-            match_type: if the match is between letters or between words: 0 for letters, and 1 for words
             cont_type: if the match must be continuous or not. Means, if after a match we can cut it from the text
                 and concatenate the text before it to the text after it, or not.
         """
         self.a = a
         self.b = b
-        self.match_type = match_type
         self.cont_type = cont_type
         self.ratio = ratio
+
         self.matches = []
+        if matches is not None:
+            self.set_matching_blocks(matches)
+
+    def set_matching_blocks(self, matching_blocks):
+        for m in matching_blocks:
+            self.append(m)
 
     def append(self, m):
         """
@@ -96,7 +99,15 @@ class MatchingBlocks:
         Returns:
             None
         """
-        self.matches.append(m)
+        if isinstance(m, difflib.Match):
+            if m.size > 0:
+                self.matches.append(VarMatch(m.a, m.b, m.size))
+        elif isinstance(m, (list, tuple)):
+            self.matches.append(VarMatch(*m))
+        elif isinstance(m, VarMatch):
+            self.matches.append(m)
+        else:
+            raise Exception(f'Unknown match format for the match {m} of type {type(m)}.')
 
     def set_ratio(self, ratio):
         """
@@ -116,30 +127,25 @@ class MatchingBlocks:
         res = ''
 
         if self.ratio is not None:
-            res += f'{self.ratio}\n'
-
-        if self.match_type == MatchingBlocks.LETTERS_MATCH_TYPE:
-            text_a = self.a.norm_name
-            text_b = self.b.norm_name
-        else:
-            text_a = self.a.words
-            text_b = self.b.words
+            res += f'{round(self.ratio, 3)}\n'
 
         for m in self.matches:
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
                 res += f'var_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}'
                 if m.d is None:
-                    res += f': \t{text_a[m.i: m.i + m.k]}\n'
+                    res += f': \t"{self.a[m.i: m.i + m.k]}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t{text_a[m.i: m.i + m.k]} vs. \n\t{text_b[m.j: m.j + m.k]}\n'
+                    res += f', diff: {m.d}:\n\t"{self.a[m.i: m.i + m.k]}" vs. \n\t"{self.b[m.j: m.j + m.k]}"\n'
             else:
                 res += f'var_1{m.i}, var_2{m.j}, length: {len(m.i)}'
 
                 if m.d is None:
-                    res += f'{"".join([text_a[i] for i in m.i])}\n'
+                    res += f': \t"{"".join([self.a[i] for i in m.i])}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t{"".join([text_a[i] for i in m.i])} vs. \n\t{"".join([text_b[j] for j in m.j])}\n'
+                    res += f', diff: {m.d}:\n\t"{"".join([self.a[i] for i in m.i])}" ' \
+                           f'vs. \n\t"{"".join([self.b[j] for j in m.j])}"\n'
 
+        return res
 
 class VarsMatcher:
     """
@@ -275,8 +281,8 @@ class VarsMatcher:
             The distance value divided by the length of the longest normalized variable
         """
 
-        return self.edit_distance(enable_transposition) \
-               / max(len(self.var_1.norm_name), len(self.var_2.norm_name))
+        return round(self.edit_distance(enable_transposition) \
+               / max(len(self.var_1.norm_name), len(self.var_2.norm_name)), 3)
 
     def difflib_seq_match_ratio(self):
         """
@@ -285,7 +291,10 @@ class VarsMatcher:
         Returns:
             The ratio returned by difflib
         """
-        return ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name).ratio()
+        seq_matcher = ExtendedSequenceMatcher(a=self.var_1.norm_name, b=self.var_2.norm_name)
+
+        return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name,
+                              seq_matcher.ratio(), seq_matcher.get_matching_blocks())
 
     def calc_max_matches(self, str_1_len, str_2_len, str_1_start, str_2_start, min_len,
                          sequence_matcher, ratio_table):
@@ -399,7 +408,7 @@ class VarsMatcher:
             min_len: minimum length of letters that related as a match
 
         Returns:
-
+            MatchingBlocks
         """
         len_1 = len(self.var_1.norm_name)
         len_2 = len(self.var_2.norm_name)
@@ -415,8 +424,9 @@ class VarsMatcher:
                         ratio_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_matches(
                             str_1_len, str_2_len, str_1_start, str_2_start, min_len, sequence_matcher, ratio_table)
 
-        return (2 * ratio_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0, \
-               self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len)
+        return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name,
+                              (2 * ratio_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0,
+                              self.backtrack_ordered_matches(ratio_table, len_1, len_2, min_len))
 
     def unordered_match_ratio(self, min_len=2):
         """
@@ -427,7 +437,7 @@ class VarsMatcher:
             min_len: minimum length of letters that related as a match
 
         Returns:
-
+            MatchingBlocks
         """
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
@@ -450,7 +460,8 @@ class VarsMatcher:
             sm.set_seq1(name_1)
             sm.update_matching_seq2(name_2, j, k)
 
-        return 2 * match_len / (len_1 + len_2), matching_blocks
+        return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name,
+                              2 * match_len / (len_1 + len_2), matching_blocks)
 
     def unedit_match_ratio(self, min_len=2):
         """
@@ -462,7 +473,7 @@ class VarsMatcher:
             min_len: minimum length of letters that related as a match
 
         Returns:
-
+            MatchingBlocks
         """
         name_1 = self.var_1.norm_name[:]
         name_2 = self.var_2.norm_name[:]
@@ -490,7 +501,9 @@ class VarsMatcher:
             sm.set_seq1(name_1)
             sm.set_seq2(name_2)
 
-        return 2 * match_len / (len(self.var_1.norm_name) + len(self.var_2.norm_name)), matching_blocks
+        return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name,
+                              2 * match_len / (len(self.var_1.norm_name) + len(self.var_2.norm_name)), matching_blocks,
+                              MatchingBlocks.DISCONTINUOUS_MATCH)
 
     @classmethod
     def words_meaning(cls, word_1, word_2):
@@ -659,9 +672,11 @@ class VarsMatcher:
 
             ratio_match_letters_vs_letters *= (max_letters_in_block - d) / max_letters_in_block
 
-        return (2 * num_of_match_words + 2 * num_of_match_spaces) / \
-               (2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) * ratio_match_letters_vs_letters, \
-               matching_blocks
+        return MatchingBlocks(self.var_1.words, self.var_2.words,
+                              (2 * num_of_match_words + 2 * num_of_match_spaces) /
+                              (2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) *
+                              ratio_match_letters_vs_letters,
+                              matching_blocks)
 
     def words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
         """
@@ -675,7 +690,7 @@ class VarsMatcher:
                                     with more words, or with more letters
 
         Returns:
-
+            MatchingBlocks
         """
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, meaning=False)
 
@@ -695,7 +710,7 @@ class VarsMatcher:
             meaning_distance: a fixed distance for synonyms and plurals
 
         Returns:
-
+            MatchingBlocks
         """
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
@@ -744,7 +759,6 @@ if __name__ == '__main__':
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or -1
 
     match_maker = VarsMatcher()
-
 
     if scriptIndex & TEST_EDIT_DISTANCE:
         var_names = [('CA', 'ABC'), ('TotalArraySize', 'ArrayTotalSize')]

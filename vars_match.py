@@ -124,12 +124,12 @@ class MatchingBlocks:
         Returns:
             Printable data about the relation between the two variables
         """
-        res = ''
+        res = f'var_1: {self.a}, var_2: {self.b}\n'
 
         if self.ratio is not None:
             res += f'Ratio: {round(self.ratio, 3)}\n'
 
-        res += f'var_1: {self.a}, var_2: {self.b}\nMatches:\n'
+        res += 'Matches:\n'
 
         for m in self.matches:
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
@@ -137,15 +137,15 @@ class MatchingBlocks:
                 if m.d is None:
                     res += f': \t"{self.a[m.i: m.i + m.k]}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t"{self.a[m.i: m.i + m.k]}" vs. \n\t"{self.b[m.j: m.j + m.k]}"\n'
+                    res += f', diff: {m.d}:\n\t\t"{self.a[m.i: m.i + m.k]}" vs. \n\t\t"{self.b[m.j: m.j + m.k]}"\n'
             else:
                 res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}'
 
                 if m.d is None:
                     res += f': \t"{"".join([self.a[i] for i in m.i])}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t"{"".join([self.a[i] for i in m.i])}" ' \
-                           f'vs. \n\t"{"".join([self.b[j] for j in m.j])}"\n'
+                    res += f', diff: {m.d}:\n\t\t"{"".join([self.a[i] for i in m.i])}" ' \
+                           f'vs. \n\t\t"{"".join([self.b[j] for j in m.j])}"\n'
         return res
 
 

@@ -129,23 +129,25 @@ class MatchingBlocks:
         if self.ratio is not None:
             res += f'{round(self.ratio, 3)}\n'
 
+        res += f'var_1: {self.a}, var_2: {self.b}\nMatches:\n'
+
         for m in self.matches:
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
-                res += f'var_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}'
+                res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}'
                 if m.d is None:
                     res += f': \t"{self.a[m.i: m.i + m.k]}"\n'
                 else:
                     res += f', diff: {m.d}:\n\t"{self.a[m.i: m.i + m.k]}" vs. \n\t"{self.b[m.j: m.j + m.k]}"\n'
             else:
-                res += f'var_1{m.i}, var_2{m.j}, length: {len(m.i)}'
+                res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}'
 
                 if m.d is None:
                     res += f': \t"{"".join([self.a[i] for i in m.i])}"\n'
                 else:
                     res += f', diff: {m.d}:\n\t"{"".join([self.a[i] for i in m.i])}" ' \
                            f'vs. \n\t"{"".join([self.b[j] for j in m.j])}"\n'
-
         return res
+
 
 class VarsMatcher:
     """
@@ -715,32 +717,12 @@ class VarsMatcher:
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              meaning=True, meaning_distance=meaning_distance)
 
-    def results_str(self, matching_result):
-        if isinstance(matching_result, tuple) and len(matching_result) == 2:
-            res = f'{matching_result[0]}\n'
-            for match in matching_result[1]:
-                if len(match) == 4:
-                    i, j, k, d = match
-                    res += f'var_1[{i}:{i+k}], var_2[{j}:{j+k}], length: {k}, diff: {d}:' \
-                           f'\n\t{self.var_1.words[i: i + k]} vs. \n\t{self.var_2.words[j: j + k]}\n'
-                elif len(match) == 3:
-                    i, j, k = (match.a, match.b, match.size) if isinstance(match, difflib.Match) else match
-                    res += f'var_1[{i}:{i+k}], var_2[{j}:{j+k}], length: {k}: \t{self.var_1.norm_name[i: i + k]}\n'
-                elif len(match) == 2:
-                    idxs_1, idxs_2 = match
-                    res += f'var_1{idxs_1}, var_2{idxs_2}, length: {len(idxs_1)}: \t' \
-                           f'{"".join([self.var_1.norm_name[i] for i in idxs_1])}\n'
-        else:
-            res = matching_result
-
-        return res
-
 
 def run_test(match_maker, pairs, func, **kwargs):
     for var_1, var_2 in pairs:
         match_maker.set_names(var_1, var_2)
         print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
-              f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{match_maker.results_str(func(**kwargs))}')
+              f'{", ".join([k + "=" + str(v) for k, v in kwargs.items()])})\n{func(**kwargs)}')
     print()
 
 

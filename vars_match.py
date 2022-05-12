@@ -127,7 +127,7 @@ class MatchingBlocks:
         res = ''
 
         if self.ratio is not None:
-            res += f'{round(self.ratio, 3)}\n'
+            res += f'Ratio: {round(self.ratio, 3)}\n'
 
         res += f'var_1: {self.a}, var_2: {self.b}\nMatches:\n'
 

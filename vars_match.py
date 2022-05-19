@@ -395,7 +395,7 @@ class VarsMatcher:
 
         return matching_blocks
 
-    def ordered_match_ratio(self, min_len=2):
+    def ordered_match(self, min_len=2):
         """
         A function that calculates the maximal ordered matches between two variables.
         Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
@@ -429,7 +429,7 @@ class VarsMatcher:
                               (2 * matches_table[-1][-1][-1][-1][0] / sum_len) if (sum_len := len_1 + len_2) > 0 else 0,
                               self.backtrack_ordered_matches(matches_table, len_1, len_2, min_len))
 
-    def unordered_match_ratio(self, min_len=2):
+    def unordered_match(self, min_len=2):
         """
         A function that calculates match ratio between two names, but doesn't requires order between matches. It means that
         it could match the first word from the first name to the last in the second name, and, in addition, the second
@@ -941,7 +941,7 @@ if __name__ == '__main__':
                      ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
                      ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire')]
         # run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=2)
-        run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=1)
+        run_test(match_maker, var_names, match_maker.ordered_match, min_len=1)
 
     if scriptIndex & TEST_SEQUENCE_UNORDERED_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B'),
@@ -949,10 +949,10 @@ if __name__ == '__main__':
                      ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
                      ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
         # run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=2)
-        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=1)
+        run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
 
         var_names = [('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA')]
-        run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=1)
+        run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
 
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:

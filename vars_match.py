@@ -468,7 +468,7 @@ class VarsMatcher:
         return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name,
                               ratio, matching_blocks)
 
-    def unedit_match_ratio(self, min_len=2):
+    def unedit_match(self, min_len=2):
         """
         A function that calculates the ratio between two variables, but after finding a match it removes it from the
         string, and search again. As a result, if, for example one required min_len to be 2, and the two names will be:
@@ -673,10 +673,10 @@ class VarsMatcher:
         for (i, j, k, d) in matching_blocks:
             num_of_match_words += k
             num_of_match_spaces += k - 1
-            max_letters_in_block = max(sum(len(w) for w in self.var_1.words[i:i+k]),
-                                       sum(len(w) for w in self.var_2.words[j:j+k]))
+            letters_in_block = sum(len(w) for w in self.var_1.words[i:i+k]) + \
+                               sum(len(w) for w in self.var_2.words[j:j+k])
 
-            ratio_match_letters_vs_letters *= (max_letters_in_block - d) / max_letters_in_block
+            ratio_match_letters_vs_letters *= (letters_in_block - 2 * d) / letters_in_block
 
         if calc_spaces:
             return (2 * num_of_match_words + 2 * num_of_match_spaces) \
@@ -696,7 +696,7 @@ class VarsMatcher:
                               self._calc_words_match_ratio(matching_blocks),
                               matching_blocks)
 
-    def words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
+    def unordered_words_match(self, min_word_match_degree=1, prefer_num_of_letters=False):
         """
         A function that calculates the ratio and the matches between the words of var_1 and var_2, but doesn't
         relate synonyms and plurals as a match.
@@ -712,8 +712,8 @@ class VarsMatcher:
         """
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, meaning=False)
 
-    def semantic_match(self, min_word_match_degree=1, prefer_num_of_letters=False,
-                       meaning_distance=1):
+    def unordered_semantic_match(self, min_word_match_degree=1, prefer_num_of_letters=False,
+                                 meaning_distance=1):
         """
 
         A function that calculates the ratio and the matches between the words of var_1 and var_2, and relates synonyms
@@ -957,20 +957,20 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
         var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.unedit_match_ratio, min_len=2)
+        run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)
 
     if scriptIndex & TEST_WARDS_MATCH:
         var_names = [('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
                      ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow')]
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3)
 
         var_names = [('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
                      ('multiply_digits_exponent', 'multiply_digits_power'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
                      ('TheWhiteHouse', 'TheHouseIsWhite')]
-        run_test(match_maker, var_names, match_maker.words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
 
     if scriptIndex & TEST_MEANING_MATCH:
         var_names = [('multiply_digits_exponent', 'multiply_digits_power'),
@@ -978,10 +978,10 @@ if __name__ == '__main__':
                      ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom')]
-        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
-        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, prefer_num_of_letters=True)
 
     if scriptIndex & TEST_MAX_WORD_MATCH:
         var_names = [('FirstLightAFire', 'LightTheFireFirst'),
@@ -989,7 +989,8 @@ if __name__ == '__main__':
                      # ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
                      # ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
                      # ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom')]
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+                     ('TheWhiteHouse', 'TheHouseIsWhite')]
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3)
         # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
         # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)

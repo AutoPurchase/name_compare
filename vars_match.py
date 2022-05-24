@@ -136,14 +136,14 @@ class MatchingBlocks:
                 if m.d is None:
                     res += f': \t"{self.a[m.i: m.i + m.k]}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t\t"{self.a[m.i: m.i + m.k]}" vs. \n\t\t"{self.b[m.j: m.j + m.k]}"\n'
+                    res += f', distance: {m.d}:\n\t\t"{self.a[m.i: m.i + m.k]}" vs. \n\t\t"{self.b[m.j: m.j + m.k]}"\n'
             else:
                 res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}'
 
                 if m.d is None:
                     res += f': \t"{"".join([self.a[i] for i in m.i])}"\n'
                 else:
-                    res += f', diff: {m.d}:\n\t\t"{"".join([self.a[i] for i in m.i])}" ' \
+                    res += f', distance: {m.d}:\n\t\t"{"".join([self.a[i] for i in m.i])}" ' \
                            f'vs. \n\t\t"{"".join([self.b[j] for j in m.j])}"\n'
         return res
 
@@ -607,7 +607,7 @@ class VarsMatcher:
                         distance = meaning_distance
                     else:
                         distance = cls._words_distance(var_1_list[i + k], var_2_list[j + k])
-                        if distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) > (1 - min_word_match_degree):
+                        if 1 - distance / min(len(var_1_list[i + k]), len(var_2_list[j + k])) < min_word_match_degree:
                             checked_points[(i + k, j + k)] = False
                             break
 
@@ -620,10 +620,8 @@ class VarsMatcher:
                             k > longest_len or
                             k == longest_len and (d < shortest_distance or
                                                   (d == shortest_distance and l > most_of_letters))
-                    ) or prefer_num_of_letters and (
-                        l > most_of_letters or
-                        l == most_of_letters and (d < shortest_distance or
-                                                  (d == shortest_distance and k > longest_len))):
+                    ) or prefer_num_of_letters and (l - d > most_of_letters - shortest_distance or
+                                                    (l - d == most_of_letters - shortest_distance and k > longest_len)):
                         longest_idx_1 = i
                         longest_idx_2 = j
                         longest_len = k
@@ -908,13 +906,13 @@ if __name__ == '__main__':
     TEST_EDIT_DISTANCE = set_bit(0)
     TEST_NORMALIZED_EDIT_DISTANCE = set_bit(1)
     TEST_DIFFLIB_MATCHER_RATIO = set_bit(2)
-    TEST_SEQUENCE_ALL_ORDERED_MATCHES_RATIO = set_bit(3)
-    TEST_SEQUENCE_UNORDERED_MATCHES_RATIO = set_bit(4)
-    TEST_SEQUENCE_UNEDIT_MATCHES_RATIO = set_bit(5)
-    TEST_WARDS_MATCH = set_bit(6)
-    TEST_MEANING_MATCH = set_bit(7)
-    TEST_MAX_WORD_MATCH = set_bit(8)
-    TEST_MAX_MEANING_MATCH = set_bit(9)
+    TEST_ORDERED_MATCH = set_bit(3)
+    TEST_ORDERED_WORD_MATCH = set_bit(4)
+    TEST_ORDERED_SEMANTIC_MATCH = set_bit(5)
+    TEST_UNORDERED_MATCH = set_bit(6)
+    TEST_UNORDERED_WORDS_MATCH = set_bit(7)
+    TEST_UNORDERED_SEMANTIC_MATCH = set_bit(8)
+    TEST_UNEDIT_MATCH = set_bit(9)
 
     scriptIndex = (len(sys.argv) > 1 and int(sys.argv[1], 0)) or -1
 
@@ -933,77 +931,86 @@ if __name__ == '__main__':
     if scriptIndex & TEST_DIFFLIB_MATCHER_RATIO:
         var_names = [('AB_CD_EF', 'EF_CD_AB'),
                      ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire')]
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+                     ('DigitPowerMultiplying', 'MultiplyDigitExponent')]
         run_test(match_maker, var_names, match_maker.difflib_match_ratio)
 
-    if scriptIndex & TEST_SEQUENCE_ALL_ORDERED_MATCHES_RATIO:
+    if scriptIndex & TEST_ORDERED_MATCH:
         var_names = [('AB_CD_EF', 'EF_CD_AB'),
                      ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire')]
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         # run_test(match_maker, var_names, match_maker.ordered_match_ratio, min_len=2)
         run_test(match_maker, var_names, match_maker.ordered_match, min_len=1)
+        run_test(match_maker, var_names, match_maker.ordered_match, min_len=2)
 
-    if scriptIndex & TEST_SEQUENCE_UNORDERED_MATCHES_RATIO:
-        var_names = [('A_CD_EF_B', 'A_EF_CD_B'),
-                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
-                     ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM')]
-        # run_test(match_maker, var_names, match_maker.unordered_match_ratio, min_len=2)
-        run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
+    if scriptIndex & TEST_ORDERED_WORD_MATCH:
+        var_names = [
+                     # ('FirstLightAFire', 'LightTheFireFirst'),
+                     # ('multiply_digits_exponent', 'multiply_digits_power'),
+                     # ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
+                     # ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
+                     # ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+                     # ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+                     # ('TheWhiteHouse', 'TheHouseIsWhite'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
+        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
+        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
 
-        var_names = [('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA')]
-        run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
-
-
-    if scriptIndex & TEST_SEQUENCE_UNEDIT_MATCHES_RATIO:
-        var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)
-
-    if scriptIndex & TEST_WARDS_MATCH:
-        var_names = [('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
-                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow')]
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3)
-
-        var_names = [('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
-                     ('multiply_digits_exponent', 'multiply_digits_power'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheWhiteHouse', 'TheHouseIsWhite')]
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
-
-    if scriptIndex & TEST_MEANING_MATCH:
-        var_names = [('multiply_digits_exponent', 'multiply_digits_power'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom')]
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, prefer_num_of_letters=True)
-
-    if scriptIndex & TEST_MAX_WORD_MATCH:
+    if scriptIndex & TEST_ORDERED_SEMANTIC_MATCH:
         var_names = [('FirstLightAFire', 'LightTheFireFirst'),
                      # ('multiply_digits_exponent', 'multiply_digits_power'),
                      # ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
                      # ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
                      # ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
-                     ('TheWhiteHouse', 'TheHouseIsWhite')]
-        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3)
-        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
-        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
-
-    if scriptIndex & TEST_MAX_MEANING_MATCH:
-        var_names = [('FirstLightAFire', 'LightTheFireFirst'),
-                     # ('multiply_digits_exponent', 'multiply_digits_power'),
-                     # ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
-                     # ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
-                     # ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom')]
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         run_test(match_maker, var_names, match_maker.ordered_semantic_match, min_word_match_degree=2 / 3)
         # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3)
         # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
         # run_test(match_maker, var_names, match_maker.semantic_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
+
+    if scriptIndex & TEST_UNORDERED_MATCH:
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B'),
+                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                     ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+        run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
+        run_test(match_maker, var_names, match_maker.unordered_match, min_len=2)
+
+    if scriptIndex & TEST_UNORDERED_WORDS_MATCH:
+        var_names = [('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
+                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+                     ('FirstLightAFire', 'LightTheFireFirst'),
+                     ('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
+                     ('multiply_digits_exponent', 'multiply_digits_power'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+                     ('TheWhiteHouse', 'TheHouseIsWhite'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1/2)
+
+    if scriptIndex & TEST_UNORDERED_SEMANTIC_MATCH:
+        var_names = [('FirstLightAFire', 'LightTheFireFirst'),
+                     ('multiply_digits_exponent', 'multiply_digits_power'),
+                     ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, prefer_num_of_letters=True)
+
+    if scriptIndex & TEST_UNEDIT_MATCH:
+        var_names = [('A_CD_EF_B', 'A_EF_CD_B')]
+        run_test(match_maker, var_names, match_maker.unedit_match, min_len=2)

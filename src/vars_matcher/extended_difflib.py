@@ -1,4 +1,4 @@
-from src.difflib import SequenceMatcher
+from src.vars_matcher.difflib import SequenceMatcher
 
 
 class ExtendedSequenceMatcher(SequenceMatcher):

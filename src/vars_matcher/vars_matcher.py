@@ -1,8 +1,8 @@
 import sys
 from os.path import abspath, dirname, join
 import re
-from src import difflib
-from extended_difflib import ExtendedSequenceMatcher
+from src.vars_matcher import difflib
+from .extended_difflib import ExtendedSequenceMatcher
 import editdistance as ed
 from strsimpy.damerau import Damerau
 import pandas as pd

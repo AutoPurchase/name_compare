@@ -50,7 +50,7 @@ class VarMatch:
     """
     Saves all the data about one match
     """
-    def __init__(self, i, j, k=None, d=None, r=None):
+    def __init__(self, i, j, k=None, l=None, d=None, r=None):
         """
         Args:
             i: match in the first var (if matches must be continuous, it contains the first index of the match, else it
@@ -62,6 +62,7 @@ class VarMatch:
         self.i = i
         self.j = j
         self.k = k
+        self.l = l
         self.d = d
         self.r = r
 
@@ -173,7 +174,7 @@ class VarsMatcher:
     levenshtein = Levenshtein()
     damerau = Damerau()
 
-    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_', support_camel_case=True,
+    def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_ \t\n', support_camel_case=True,
                  numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
         """
         Args:
@@ -249,7 +250,7 @@ class VarsMatcher:
         if not self.case_sensitivity:
             name = name.lower()
 
-        return list(filter(None, name.split(self.word_separators)))
+        return list(filter(None, re.split(fr'[{self.word_separators}]', name)))
 
     @staticmethod
     def _find_separator(name, other_var, default_sep):
@@ -473,7 +474,8 @@ class VarsMatcher:
         name_2 = self.var_2.norm_name[:]
         len_1 = len(name_1)
         len_2 = len(name_2)
-        continuity_weight = 1 if continuity_heavy_weight else (2 / (len_1 + len_2 - 2))
+        continuity_weight = 1 if continuity_heavy_weight \
+            else (2 / num_of_spaces if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
 
         matching_blocks = []
         match_len = 0
@@ -594,8 +596,8 @@ class VarsMatcher:
         return cls.levenshtein.distance(word_1, word_2)
 
     @classmethod
-    def find_longest_match(cls, var_1_list, var_2_list, min_word_match_degree, prefer_num_of_letters,
-                           use_meanings, meaning_distance):
+    def find_longest_words_match(cls, var_1_list, var_2_list, min_word_match_degree, prefer_num_of_letters,
+                                 use_meanings, meaning_distance):
         """
         A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
 
@@ -634,7 +636,7 @@ class VarsMatcher:
                 if checked_points.get((i, j)) is not None:  # Because or they aren't similar, or, if they are similar,
                     continue                                # they already a part of a longer sequence
 
-                k = d = r = l = 0   # k: word index, d: distance, l: number of letters
+                k = d = r = l = 0   # k: word index, d: distance, r: sum of ratios, l: number of letters
                 while i + k < len_a and j + k < len_b:
                     meaning_used = False
 
@@ -649,22 +651,20 @@ class VarsMatcher:
 
                     ratio = 1 - 2 * distance / (len(var_1_list[i + k]) + len(var_2_list[j + k]))
 
-                    if not meaning_used and ratio < min_word_match_degree:
+                    if not meaning_used and ratio < min_word_match_degree or ratio <= 0:
                         checked_points[(i + k, j + k)] = False
                         break
 
                     checked_points[(i + k, j + k)] = True
                     d += distance
                     r += ratio
-                    l += len(var_1_list[i + k]) + len(var_2_list[j + k])
+                    l += (len(var_1_list[i + k]) + len(var_2_list[j + k])) / 2
                     k += 1
 
-                    if not prefer_num_of_letters and (
-                            k > longest_len or
-                            k == longest_len and (r > largest_ratio or
-                                                  (r == largest_ratio and l > most_of_letters))
-                    ) or prefer_num_of_letters and (l - d > most_of_letters - shortest_distance or
-                                                    (l - d == most_of_letters - shortest_distance and k > longest_len)):
+                    lengths, longest_lengths = ((k, l), (longest_len, most_of_letters)) if not prefer_num_of_letters \
+                        else ((l, k), (most_of_letters, longest_len))
+
+                    if r > largest_ratio or r == largest_ratio and lengths > longest_lengths:
                         longest_idx_1 = i
                         longest_idx_2 = j
                         longest_len = k
@@ -672,7 +672,7 @@ class VarsMatcher:
                         largest_ratio = r
                         most_of_letters = l
 
-        return longest_idx_1, longest_idx_2, longest_len, shortest_distance, largest_ratio
+        return longest_idx_1, longest_idx_2, longest_len, most_of_letters, shortest_distance, largest_ratio
 
     def calc_all_matching_blocks(self, min_word_match_degree, prefer_num_of_letters, use_meanings, meaning_distance):
         """
@@ -696,8 +696,8 @@ class VarsMatcher:
 
         matching_blocks = []
         while True:
-            i, j, k, d, r = x = self.find_longest_match(modified_var_1, modified_var_2, min_word_match_degree,
-                                                     prefer_num_of_letters, use_meanings, meaning_distance)
+            i, j, k, l, d, r = x = self.find_longest_words_match(modified_var_1, modified_var_2, min_word_match_degree,
+                                                              prefer_num_of_letters, use_meanings, meaning_distance)
             if k == 0:
                 break
 
@@ -708,19 +708,17 @@ class VarsMatcher:
         return matching_blocks
 
     def _calc_words_match_ratio(self, matching_blocks, calc_spaces=True, continuity_heavy_weight=False):
-        continuity_weight = 1 if continuity_heavy_weight else (2 / (len(self.var_1.words) + len(self.var_2.words) - 2))
+        continuity_weight = 1 if continuity_heavy_weight \
+            else (2 / num_of_spaces if (num_of_spaces := len(self.var_1.words) + len(self.var_2.words) - 2) > 0 else 0)
 
         num_of_match_words = 0
         num_of_match_spaces = 0
         ratio_match_letters_vs_letters = 1
 
-        for (i, j, k, d, r) in matching_blocks:
+        for (i, j, k, l, d, r) in matching_blocks:
             num_of_match_words += k
             num_of_match_spaces += (k - 1) * continuity_weight
-            letters_in_block = sum(len(w) for w in self.var_1.words[i:i+k]) + \
-                               sum(len(w) for w in self.var_2.words[j:j+k])
-
-            ratio_match_letters_vs_letters *= (letters_in_block - 2 * d) / letters_in_block
+            ratio_match_letters_vs_letters *= (l - d) / l
 
         if calc_spaces:
             return (2 * num_of_match_words + 2 * num_of_match_spaces) \
@@ -797,7 +795,7 @@ class VarsMatcher:
                                                        meaning=True, meaning_distance=meaning_distance,
                                                        continuity_heavy_weight=continuity_heavy_weight)
 
-    def calc_max_word_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
+    def calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
                               min_word_match_degree, prefer_num_of_letters, use_meaning, meaning_distance):
         """
 
@@ -822,10 +820,10 @@ class VarsMatcher:
         matching_blocks = []
         max_matches = None
 
-        i, j, k, d, r = self.find_longest_match(self.var_1.words[var_1_start: var_1_end],
+        i, j, k, l, d, r = self.find_longest_words_match(self.var_1.words[var_1_start: var_1_end],
                                                      self.var_2.words[var_2_start: var_2_end],
-                                                     min_word_match_degree, prefer_num_of_letters,
-                                                     use_meaning, meaning_distance)
+                                                      min_word_match_degree, prefer_num_of_letters,
+                                                      use_meaning, meaning_distance)
 
         if (longest_match_len := k) < 1:
             return None
@@ -836,28 +834,30 @@ class VarsMatcher:
         while k == longest_match_len:
             i += var_1_start
             j += var_2_start
-            matching_blocks.append((i, j, k, d, r))
+            matching_blocks.append((i, j, k, l, d, r))
 
             words_1 = words_1[:i] + [self.var_2.separator] * k + words_1[i + k:]
             words_2 = words_2[:j] + [self.var_1.separator] * k + words_2[j + k:]
-            i, j, k, d, r = self.find_longest_match(words_1[var_1_start: var_1_end],
+            i, j, k, l, d, r = self.find_longest_words_match(words_1[var_1_start: var_1_end],
                                                          words_2[var_2_start: var_2_end],
-                                                         min_word_match_degree, prefer_num_of_letters,
-                                                         use_meaning, meaning_distance)
-        for i, j, k, d, r in matching_blocks:
-            left_max_ratio = (0, 0) if i == var_1_start or j == var_2_start or \
+                                                          min_word_match_degree, prefer_num_of_letters,
+                                                          use_meaning, meaning_distance)
+        for i, j, k, l, d, r in matching_blocks:
+            left_max_matches = ([0, 0], 0) if i == var_1_start or j == var_2_start or \
                 (left_match := matches_table[i - var_1_start - 1][j - var_2_start - 1][var_1_start][var_2_start]) is None \
                 else (left_match.length, left_match.ratio)
-            right_max_ratio = (0, 0) if i + k == var_1_end or j + k == var_2_end or \
+            right_max_matches = ([0, 0], 0) if i + k == var_1_end or j + k == var_2_end or \
                 (right_match := matches_table[var_1_end - (i + k) - 1][var_2_end - (j + k) - 1][i + k][j + k]) is None \
                 else (right_match.length, right_match.ratio)
 
-            curr_all_matches = k + left_max_ratio[0] + right_max_ratio[0]
-            curr_ratio = r + left_max_ratio[1] + right_max_ratio[1]
+            lengths = (k, l) if not prefer_num_of_letters else (l, k)
+            curr_lengths = [sum(len_type) for len_type in zip(left_max_matches[0], lengths, right_max_matches[0])]
 
-            if max_matches is None or curr_all_matches > max_matches.length or \
-                    curr_all_matches == max_matches.length and curr_ratio > max_matches.ratio:
-                max_matches = SubMatch(curr_all_matches, (i, j, k, d, r), curr_ratio)
+            curr_ratio = r + left_max_matches[1] + right_max_matches[1]
+
+            if max_matches is None or curr_ratio > max_matches.ratio or \
+                    curr_ratio == max_matches.ratio and curr_lengths > max_matches.length:
+                max_matches = SubMatch(curr_lengths, (i, j, k, l, d, r), curr_ratio)
 
         return max_matches
 
@@ -896,7 +896,7 @@ class VarsMatcher:
             for str_2_len in range(len_2):  # Actually the length is plus one
                 for str_1_start in range(len_1 - str_1_len):
                     for str_2_start in range(len_2 - str_2_len):
-                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_word_matches(
+                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self.calc_max_words_matches(
                             str_1_len, str_2_len, str_1_start, str_2_start, matches_table,
                             min_word_match_degree, prefer_num_of_letters, use_meaning, meaning_distance)
 

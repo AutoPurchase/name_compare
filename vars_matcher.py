@@ -591,7 +591,7 @@ class VarsMatcher:
         return False
 
     @classmethod
-    def find_longest_words_match(cls, var_1_list, var_2_list, separator_1, separator_2, letters_match_func,
+    def find_longest_words_match(cls, var_1_list, var_2_list, separator_1, separator_2,
                                  min_word_match_degree, prefer_num_of_letters, use_meanings, continuity_heavy_weight=None):
         """
         A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
@@ -647,9 +647,8 @@ class VarsMatcher:
                     if var_1_list[i + k] == var_2_list[j + k]:
                         ratio = 1
                     else:
-                        ratio = letters_match_func(
-                            *filter(None, [var_1_list[i + k], var_2_list[j + k], separator_1, separator_2, 1,
-                                           continuity_heavy_weight])).ratio
+                        ratio = cls.str_ordered_match(
+                            var_1_list[i + k], var_2_list[j + k], separator_1, separator_2, 1).ratio
 
                     if ratio < min_word_match_degree:
                         if use_meanings and cls.words_meaning(var_1_list[i + k], var_2_list[j + k]):
@@ -730,8 +729,7 @@ class VarsMatcher:
         while True:
             i, j, k, l, r = x = self.find_longest_words_match(modified_var_1, modified_var_2,
                                                               self.var_1.separator, self.var_2.separator,
-                                                              self.str_unordered_match, min_word_match_degree,
-                                                              prefer_num_of_letters, use_meanings,
+                                                              min_word_match_degree,prefer_num_of_letters, use_meanings,
                                                               continuity_heavy_weight)
             if k == 0:
                 break
@@ -826,7 +824,6 @@ class VarsMatcher:
         i, j, k, l, r = self.find_longest_words_match(self.var_1.words[var_1_start: var_1_end],
                                                       self.var_2.words[var_2_start: var_2_end],
                                                       self.var_1.separator, self.var_2.separator,
-                                                      self.str_ordered_match,
                                                       min_word_match_degree, prefer_num_of_letters,
                                                       use_meaning)
 
@@ -846,7 +843,6 @@ class VarsMatcher:
             i, j, k, l, r = self.find_longest_words_match(words_1[var_1_start: var_1_end],
                                                           words_2[var_2_start: var_2_end],
                                                           self.var_1.separator, self.var_2.separator,
-                                                          self.str_ordered_match,
                                                           min_word_match_degree, prefer_num_of_letters,
                                                           use_meaning)
         for i, j, k, l, r in matching_blocks:

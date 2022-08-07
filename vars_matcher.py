@@ -396,9 +396,8 @@ class VarsMatcher:
         start_2_idx = 0
 
         matching_indices.append((len_1_idx, len_2_idx, start_1_idx, start_2_idx))
-        i = 0
 
-        while i < len(matching_indices):
+        for i in range(len(matching_indices)):
             len_1_idx, len_2_idx, start_1_idx, start_2_idx = matching_indices[i]
             x = matches_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx]
             if x:
@@ -409,7 +408,6 @@ class VarsMatcher:
                 if (str_1_end := start_1_idx + len_1_idx + 1) - (i + k) >= min_len and \
                    (str_2_end := start_2_idx + len_2_idx + 1) - (j + k) >= min_len:
                     matching_indices.append((str_1_end - (i + k) - 1, str_2_end - (j + k) - 1, i + k, j + k))
-            i += 1
 
         for len_1_idx, len_2_idx, start_1_idx, start_2_idx in matching_indices:
             if (match_data := matches_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx]) is not None and \
@@ -425,7 +423,7 @@ class VarsMatcher:
         sequence_matcher = ExtendedSequenceMatcher(a=str_1, b=str_2)
 
         matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
-                        for str_2_len in range(len_2)] for str_1_len in range(len_1)]
+                          for str_2_len in range(len_2)] for str_1_len in range(len_1)]
 
         for str_1_len in range(len_1):      # Actually the length is plus one
             for str_2_len in range(len_2):  # Actually the length is plus one

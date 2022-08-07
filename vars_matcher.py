@@ -599,6 +599,8 @@ class VarsMatcher:
         A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
 
         Args:
+            separator_1: a letter that does not exist in var_1
+            separator_2: a letter that does not exist in var_2
             var_1_list: list of words
             var_2_list: list of words
             letters_match_func: a function that compares two strings of letters (not words), and returns MatchingBlocks
@@ -609,6 +611,16 @@ class VarsMatcher:
             prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
                                     with more words, or with more letters
             use_meanings: boolean value that set if to match two words with similar meaning, or not
+            continuity_heavy_weight: continuity_heavy_weight: The weight of continuity between two words: Because in this function we find
+                matches also when they are unordered, we have to give match of "AB" vs. "AB" (when "A" and "B" are
+                words) more weight than "AB" vs. "BA" (even though in this function we recognized both "A" and "B" as a
+                match even when the order is different).
+                As a result, we give a weight also to continuity of words. Means, when we find a match of two words
+                continuously, we give a score also to "the continuity", and as a result we relate to the string as it
+                composed of words and continuities.
+                This score could let "the continuity" a HEAVY weight (True) - as it was a word, or LIGHT weight
+                (False) - 1/N when N is the average number of the words in the two strings.
+
 
         Returns:
             A tuple that contains:

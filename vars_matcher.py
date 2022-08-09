@@ -412,20 +412,20 @@ class VarsMatcher:
                     matching_indices.append((str_1_end - (i + k) - 1, str_2_end - (j + k) - 1, i + k, j + k))
             i += 1
 
-        continuity_weight = 1 if continuity_heavy_weight \
+        space_weight = 1 if continuity_heavy_weight \
             else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
 
-        match_len = match_weight = 0
+        match_len = match_spaces_weight = 0
 
         for len_1_idx, len_2_idx, start_1_idx, start_2_idx in matching_indices:
             if (match_data := matches_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx]) is not None and \
                     (match := match_data.longest_match) is not None:
                 match_len += match[2]
-                match_weight += (match[2] - 1) * continuity_weight
+                match_spaces_weight += (match[2] - 1) * space_weight
                 matching_blocks.append(match)
 
-        continuity_ratio = ((2 * match_len + 2 * match_weight) / denominator) \
-            if (denominator := (len_1 + len_2 + continuity_weight * (len_1 + len_2 - 2))) > 0 else 0
+        continuity_ratio = ((2 * match_len + 2 * match_spaces_weight) / denominator) \
+            if (denominator := (len_1 + len_2 + space_weight * (len_1 + len_2 - 2))) > 0 else 0
 
         return continuity_ratio, matching_blocks
 
@@ -478,12 +478,12 @@ class VarsMatcher:
 
         len_1 = len(modified_str_1)
         len_2 = len(modified_str_2)
-        continuity_weight = 1 if continuity_heavy_weight \
+        space_weight = 1 if continuity_heavy_weight \
             else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
 
         matching_blocks = []
         match_len = 0
-        match_weight = 0
+        match_spaces_weight = 0
 
         sm = ExtendedSequenceMatcher(a=modified_str_1, b=modified_str_2)
         while True:
@@ -493,14 +493,14 @@ class VarsMatcher:
 
             matching_blocks.append(x)
             match_len += k
-            match_weight += (k - 1) * continuity_weight
+            match_spaces_weight += (k - 1) * space_weight
             modified_str_1 = modified_str_1[:i] + separator_2 * k + modified_str_1[i + k:]
             modified_str_2 = modified_str_2[:j] + separator_1 * k + modified_str_2[j + k:]
             sm.set_seq1(modified_str_1)
             sm.update_matching_seq2(modified_str_2, j, k)
 
-        continuity_ratio = ((2 * match_len + 2 * match_weight) / denominator) \
-            if (denominator := (len_1 + len_2 + continuity_weight * (len_1 + len_2 - 2))) > 0 else 0
+        continuity_ratio = ((2 * match_len + 2 * match_spaces_weight) / denominator) \
+            if (denominator := (len_1 + len_2 + space_weight * (len_1 + len_2 - 2))) > 0 else 0
 
         return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matching_blocks)
 
@@ -545,7 +545,7 @@ class VarsMatcher:
         len_1 = len(self.var_1.norm_name)
         len_2 = len(self.var_2.norm_name)
 
-        continuity_weight = 1 if continuity_heavy_weight \
+        space_weight = 1 if continuity_heavy_weight \
             else ((2 / num_of_spaces)
                   if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
 
@@ -554,7 +554,7 @@ class VarsMatcher:
 
         matching_blocks = []
         match_len = 0
-        match_weight = 0
+        match_spaces_weight = 0
 
         sm = ExtendedSequenceMatcher(a=name_1, b=name_2)
         while True:
@@ -566,7 +566,7 @@ class VarsMatcher:
             matching_blocks.append((indices_1[i:i+k], indices_2[j:j+k]))
 
             match_len += k
-            match_weight += (k - 1) * continuity_weight
+            match_spaces_weight += (k - 1) * space_weight
             name_1 = name_1[:i] + name_1[i+k:]
             name_2 = name_2[:j] + name_2[j+k:]
             indices_1 = indices_1[:i] + indices_1[i+k:]
@@ -574,8 +574,8 @@ class VarsMatcher:
             sm.set_seq1(name_1)
             sm.set_seq2(name_2)
 
-        continuity_ratio = ((2 * match_len + 2 * match_weight) / denominator) \
-            if (denominator := len_1 + len_2 + continuity_weight * (len_1 + len_2 - 2)) > 0 else 0
+        continuity_ratio = ((2 * match_len + 2 * match_spaces_weight) / denominator) \
+            if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
 
         return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name, MatchingBlocks.LETTERS_MATCH,
                               continuity_ratio, matching_blocks, MatchingBlocks.DISCONTINUOUS_MATCH)
@@ -697,25 +697,26 @@ class VarsMatcher:
                (largest_ratios / longest_len if longest_len else 0)
 
     def _calc_words_match_ratio(self, matching_blocks, calc_spaces=True, continuity_heavy_weight=False):
-        continuity_weight = 1 if continuity_heavy_weight \
-            else ((2 / num_of_spaces) if (num_of_spaces := len(self.var_1.words) + len(self.var_2.words) - 2) > 0 else 0)
+        len_1 = len(self.var_1.words)
+        len_2 = len(self.var_2.words)
 
-        num_of_match_words = 0
-        num_of_match_spaces = 0
+        space_weight = 1 if continuity_heavy_weight \
+            else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
+
+        match_words = 0
+        match_spaces_weight = 0
         ratio = 1
 
         for (i, j, k, l, r) in matching_blocks:
-            num_of_match_words += k
-            num_of_match_spaces += (k - 1) * continuity_weight
+            match_words += k
+            match_spaces_weight += (k - 1) * space_weight
             ratio *= r
 
         if calc_spaces:
-            return (2 * num_of_match_words + 2 * num_of_match_spaces) * ratio \
-                   / ((2 * len(self.var_1.words) + 2 * len(self.var_2.words) - 2) if continuity_heavy_weight else
-                      (len(self.var_1.words) + len(self.var_2.words) + 2))
+            return ((2 * match_words + 2 * match_spaces_weight) * ratio / denominator) \
+                if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
         else:
-            return 2 * num_of_match_words * ratio \
-                    / (len(self.var_1.words) + len(self.var_2.words))
+            return 2 * match_words * ratio / (len_1 + len_2)
 
     def _unordered_words_and_meaning_match(self, min_word_match_degree, prefer_num_of_letters,
                                            use_meanings, continuity_heavy_weight=False):
@@ -1043,7 +1044,9 @@ if __name__ == '__main__':
                      ('AB_CD_EF', 'EF_CD_AB'),
                      ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
                      ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+                     ('multiword_name', 'multiple_words_name'),
+        ]
         run_test(match_maker, var_names, match_maker.ordered_match, min_len=1)
         run_test(match_maker, var_names, match_maker.ordered_match, min_len=2)
 
@@ -1056,9 +1059,12 @@ if __name__ == '__main__':
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
                      ('TheWhiteHouse', 'TheHouseIsWhite'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+                     ('multiword_name', 'multiple_words_name'),
+        ]
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=0.5)
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
 
     if scriptIndex & TEST_ORDERED_SEMANTIC_MATCH:
@@ -1089,10 +1095,16 @@ if __name__ == '__main__':
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
                      ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
                      ('TheWhiteHouse', 'TheHouseIsWhite'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
+                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+                     ('abcdefghijk_abcdefgh', 'bcdefghijkl_efghijkl'),
+                     ('abcdefghijk', 'bcdefghijkl'),
+                     ('abcdefghijk', 'efghijkl'),
+                     ('abcdefgh', 'bcdefghijkl'),
+                     ('abcdefgh', 'efghijkl'),
+                     ('bcdefghijkl_efghijkl', 'abcdefghijk_abcdefgh'),
+        ]
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1/2)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1, continuity_heavy_weight=True)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3, continuity_heavy_weight=True)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1/2, continuity_heavy_weight=True)

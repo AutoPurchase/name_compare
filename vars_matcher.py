@@ -928,7 +928,7 @@ class VarsMatcher:
                                                                         continuity_heavy_weight=continuity_heavy_weight)
 
         return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
-                              self._calc_words_match_ratio(matching_blocks, calc_spaces=False),
+                              self._calc_words_match_ratio(matching_blocks, calc_spaces=True),
                               matching_blocks)
 
     def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
@@ -1061,6 +1061,7 @@ if __name__ == '__main__':
                      ('TheWhiteHouse', 'TheHouseIsWhite'),
                      ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
                      ('multiword_name', 'multiple_words_name'),
+                     ('words_name', 'multiple_words_name'),
         ]
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3)

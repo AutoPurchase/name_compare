@@ -8,9 +8,6 @@ from strsimpy.damerau import Damerau
 import csv
 from datetime import datetime
 
-SYNONYMS_PATH = abspath(join(dirname(__file__), r'synonyms.csv'))
-PLURAL_PATH = abspath(join(dirname(__file__), r'plurals.csv'))
-
 
 def get_synonyms_plural_df():
     """
@@ -18,6 +15,9 @@ def get_synonyms_plural_df():
     Returns:
         Pandas DataFrame that for each word contains its synonyms and plurals.
     """
+    SYNONYMS_PATH = abspath(join(dirname(__file__), r'synonyms.csv'))
+    PLURAL_PATH = abspath(join(dirname(__file__), r'plurals.csv'))
+
     with open(SYNONYMS_PATH, newline='') as csvfile:
         synonyms = {row['word']: row['synonyms'].split(',') for row in csv.DictReader(csvfile)}
 
@@ -26,10 +26,12 @@ def get_synonyms_plural_df():
 
     return synonyms, plurals
 
+
 class Var:
     """
         Saves all data about a var
     """
+
     def __init__(self, name, words, norm_name, separator):
         """
         Args:
@@ -39,7 +41,6 @@ class Var:
             separator: A letter that isn't included in THIS name, for using ANOTHER names
                         (and promised no matching will be with this name)
         """
-
         self.name = name
         self.words = words
         self.norm_name = norm_name
@@ -50,6 +51,7 @@ class VarMatch:
     """
     Saves all the data about one match
     """
+
     def __init__(self, i, j, k=None, l=None, r=None):
         """
         Args:
@@ -67,10 +69,12 @@ class VarMatch:
 
 
 class SubMatch:
-    def __init__(self, length, longest_match, ratio=1):
+    def __init__(self, length, longest_match, ratio=1, cross_match=False):
         self.length = length
         self.ratio = ratio
         self.longest_match = longest_match
+        self.cross_match = cross_match  # max matching will be gained by cross the matches in both sides of this match.
+                                        # Is used in Unordered Matches only
 
 
 class MatchingBlocks:
@@ -236,7 +240,7 @@ class VarsMatcher:
         if self.literal_comparison:
             return [name]
 
-        name = re.sub(f'[^ -~]', self.word_separators[0], name) # remove all non-visible characters
+        name = re.sub(f'[^ -~]', self.word_separators[0], name)  # remove all non-visible characters
 
         if self.support_camel_case:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
@@ -299,8 +303,8 @@ class VarsMatcher:
             The distance value divided by the length of the longest normalized variable
         """
 
-        return round(self.edit_distance(enable_transposition) \
-               / max(len(self.var_1.norm_name), len(self.var_2.norm_name)), 3)
+        return round(self.edit_distance(enable_transposition)
+                     / max(len(self.var_1.norm_name), len(self.var_2.norm_name)), 3)
 
     def difflib_match_ratio(self):
         """
@@ -315,8 +319,8 @@ class VarsMatcher:
                               seq_matcher.ratio(), seq_matcher.get_matching_blocks())
 
     @staticmethod
-    def calc_max_matches(str_1, str_2, str_1_len, str_2_len, str_1_start, str_2_start, separator_1, separator_2,
-                         min_len, sequence_matcher, matches_table):
+    def _calc_max_matches(str_1, str_2, str_1_len, str_2_len, str_1_start, str_2_start, separator_1, separator_2,
+                          min_len, sequence_matcher, matches_table):
         """
         A function that implements dynamic programming methodology for finding for each two substrings of two strings
         the longest match that it plus the (smaller) matches in both sides of it will maximizes the total
@@ -347,34 +351,54 @@ class VarsMatcher:
         if (longest_match_len := k) < min_len:
             return None
 
-        aux_sequence_matcher = ExtendedSequenceMatcher()
+        aux_sequence_matcher = sequence_matcher
 
         while match[2] == longest_match_len:
             matching_blocks.append(match)
 
+            j_, k_ = j, k
+            while True:
+                i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i, i + k, j_ + k_, str_2_end)
+                if k_ < k:
+                    break
+                matching_blocks.append(match_)
+
+            i_, k_ = i, k
+            while True:
+                i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i_ + k_, str_1_end, j, j + k)
+                if k_ < k:
+                    break
+                matching_blocks.append(match_)
+
             str_1 = str_1[:i] + separator_2 * k + str_1[i + k:]
             str_2 = str_2[:j] + separator_1 * k + str_2[j + k:]
+
+            if aux_sequence_matcher is sequence_matcher:
+                aux_sequence_matcher = ExtendedSequenceMatcher()
+
             aux_sequence_matcher.set_seq1(str_1)
             aux_sequence_matcher.update_matching_seq2(str_2, j, k)
             i, j, k = match = aux_sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
 
         for i, j, k in matching_blocks:
-            left_max_ratio = 0 if i == str_1_start or j == str_2_start or \
-                (left_match := matches_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start]) is None \
-                else left_match.length
-            right_max_ratio = 0 if i + k == str_1_end or j + k == str_2_end or \
-                (right_match := matches_table[str_1_end - (i + k) - 1][str_2_end - (j + k) - 1][i + k][j + k]) is None \
-                else right_match.length
 
-            curr_all_matches = k + left_max_ratio + right_max_ratio
+            left_max_matches = (0, 0) if i == str_1_start or j == str_2_start or (
+                left_match := matches_table[i - str_1_start - 1][j - str_2_start - 1][str_1_start][str_2_start]
+            ) is None else (left_match.length, left_match.ratio)
+            right_max_matches = (0, 0) if i + k == str_1_end or j + k == str_2_end or (
+                right_match := matches_table[str_1_end - (i + k) - 1][str_2_end - (j + k) - 1][i + k][j + k]
+            ) is None else (right_match.length, right_match.ratio)
 
-            if max_matches is None or curr_all_matches > max_matches.length:
-                max_matches = SubMatch(curr_all_matches, (i, j, k))
+            curr_all_matches = (k + left_max_matches[0] + right_max_matches[0],
+                                pow(k, 2) + left_max_matches[1] + right_max_matches[1])
+
+            if max_matches is None or curr_all_matches > (max_matches.length, max_matches.ratio):
+                max_matches = SubMatch(curr_all_matches[0], (i, j, k), curr_all_matches[1], False)
 
         return max_matches
 
     @staticmethod
-    def backtrack_ordered_matches(matches_table, len_1, len_2, min_len=1, continuity_heavy_weight=False):
+    def backtrack_matches(matches_table, len_1, len_2, min_len=1, continuity_heavy_weight=False):
         """
         Calculates the matches that take part in the maximal ordered matching
 
@@ -397,20 +421,30 @@ class VarsMatcher:
 
         matching_indices.append((len_1_idx, len_2_idx, start_1_idx, start_2_idx))
 
-        i = 0
+        range_idx = 0
 
-        while i < len(matching_indices):
-            len_1_idx, len_2_idx, start_1_idx, start_2_idx = matching_indices[i]
+        while range_idx < len(matching_indices):
+            len_1_idx, len_2_idx, start_1_idx, start_2_idx = matching_indices[range_idx]
             x = matches_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx]
             if x:
                 i, j, k = x.longest_match[0:3]
-                if i - start_1_idx >= min_len and j - start_2_idx >= min_len:
-                    matching_indices.append((i - start_1_idx -1, j - start_2_idx -1, start_1_idx, start_2_idx))
 
-                if (str_1_end := start_1_idx + len_1_idx + 1) - (i + k) >= min_len and \
-                   (str_2_end := start_2_idx + len_2_idx + 1) - (j + k) >= min_len:
-                    matching_indices.append((str_1_end - (i + k) - 1, str_2_end - (j + k) - 1, i + k, j + k))
-            i += 1
+                if not x.cross_match:
+                    if i - start_1_idx >= min_len and j - start_2_idx >= min_len:
+                        matching_indices.append((i - start_1_idx - 1, j - start_2_idx - 1, start_1_idx, start_2_idx))
+
+                    if (str_1_end := start_1_idx + len_1_idx + 1) - (i + k) >= min_len and \
+                            (str_2_end := start_2_idx + len_2_idx + 1) - (j + k) >= min_len:
+                        matching_indices.append((str_1_end - (i + k) - 1, str_2_end - (j + k) - 1, i + k, j + k))
+                else:
+                    if i - start_1_idx >= min_len and \
+                            (str_2_end := start_2_idx + len_2_idx + 1) - (j + k) >= min_len:
+                        matching_indices.append((i - start_1_idx - 1, str_2_end - (j + k) - 1, start_1_idx, j + k))
+
+                    if (str_1_end := start_1_idx + len_1_idx + 1) - (i + k) >= min_len and j - start_2_idx >= min_len:
+                        matching_indices.append((str_1_end - (i + k) - 1, j - start_2_idx - 1, i + k, start_2_idx))
+
+            range_idx += 1
 
         space_weight = 1 if continuity_heavy_weight \
             else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
@@ -438,16 +472,16 @@ class VarsMatcher:
         matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
                           for str_2_len in range(len_2)] for str_1_len in range(len_1)]
 
-        for str_1_len in range(len_1):      # Actually the length is plus one
+        for str_1_len in range(len_1):  # Actually the length is plus one
             for str_2_len in range(len_2):  # Actually the length is plus one
                 for str_1_start in range(len_1 - str_1_len):
                     for str_2_start in range(len_2 - str_2_len):
-                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = cls.calc_max_matches(
+                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = cls._calc_max_matches(
                             str_1, str_2, str_1_len, str_2_len, str_1_start, str_2_start, separator_1, separator_2,
                             min_len, sequence_matcher, matches_table)
 
-        continuity_ratio, matches = cls.backtrack_ordered_matches(matches_table, len_1, len_2, min_len,
-                                                                  continuity_heavy_weight)
+        continuity_ratio, matches = cls.backtrack_matches(matches_table, len_1, len_2, min_len,
+                                                          continuity_heavy_weight)
 
         return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matches)
 
@@ -563,14 +597,14 @@ class VarsMatcher:
             if k < min_len:
                 break
 
-            matching_blocks.append((indices_1[i:i+k], indices_2[j:j+k]))
+            matching_blocks.append((indices_1[i:i + k], indices_2[j:j + k]))
 
             match_len += k
             match_spaces_weight += (k - 1) * space_weight
-            name_1 = name_1[:i] + name_1[i+k:]
-            name_2 = name_2[:j] + name_2[j+k:]
-            indices_1 = indices_1[:i] + indices_1[i+k:]
-            indices_2 = indices_2[:j] + indices_2[j+k:]
+            name_1 = name_1[:i] + name_1[i + k:]
+            name_2 = name_2[:j] + name_2[j + k:]
+            indices_1 = indices_1[:i] + indices_1[i + k:]
+            indices_2 = indices_2[:j] + indices_2[j + k:]
             sm.set_seq1(name_1)
             sm.set_seq2(name_2)
 
@@ -600,7 +634,7 @@ class VarsMatcher:
                          cls.Synonyms.get(word_2.rstrip('s'), []) + cls.Synonyms.get(word_2.rstrip('es'), []))
 
         if len({word_2, word_2.rstrip('s'), word_2.rstrip('es')}.intersection(syn_word_1)) > 0 or \
-           len({word_1, word_1.rstrip('s'), word_1.rstrip('es')}.intersection(syn_word_2)) > 0:
+                len({word_1, word_1.rstrip('s'), word_1.rstrip('es')}.intersection(syn_word_2)) > 0:
             return True
         elif word_2 == cls.Plural.get(word_1) \
                 or word_1 == cls.Plural.get(word_2):
@@ -613,7 +647,8 @@ class VarsMatcher:
 
     @classmethod
     def find_longest_words_match(cls, var_1_list, var_2_list, separator_1, separator_2,
-                                 min_word_match_degree, prefer_num_of_letters, use_meanings, continuity_heavy_weight=None):
+                                 min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                 continuity_heavy_weight=None):
         """
         A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
 
@@ -661,9 +696,9 @@ class VarsMatcher:
         for i in range(len_a):
             for j in range(len_b):
                 if checked_points.get((i, j)) is not None:  # Because or they aren't similar, or, if they are similar,
-                    continue                                # they already a part of a longer sequence
+                    continue  # they already a part of a longer sequence
 
-                k = r = l = 0   # k: word index, r: sum of ratios, l: number of letters
+                k = r = l = 0  # k: word index, r: sum of ratios, l: number of letters
                 while i + k < len_a and j + k < len_b:
                     if var_1_list[i + k] == var_2_list[j + k]:
                         ratio = 1
@@ -764,7 +799,8 @@ class VarsMatcher:
                               self._calc_words_match_ratio(matching_blocks, continuity_heavy_weight=continuity_heavy_weight),
                               matching_blocks)
 
-    def unordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False, continuity_heavy_weight=False):
+    def unordered_words_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+                              continuity_heavy_weight=False):
         """
         A function that calculates the ratio and the matches between the words of var_1 and var_2, but doesn't
         relate synonyms and plurals as a match.
@@ -790,7 +826,7 @@ class VarsMatcher:
         return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
                                                        continuity_heavy_weight=continuity_heavy_weight)
 
-    def unordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+    def unordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                                  continuity_heavy_weight=False):
         """
 
@@ -819,8 +855,9 @@ class VarsMatcher:
         return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                                        use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
 
-    def _calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
-                                min_word_match_degree, prefer_num_of_letters, use_meaning, continuity_heavy_weight=False):
+    def _calc_max_ordered_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
+                                        min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                        continuity_heavy_weight=False):
         """
 
         Args:
@@ -840,14 +877,14 @@ class VarsMatcher:
         var_1_end = var_1_start + var_1_len + 1
         var_2_end = var_2_start + var_2_len + 1
 
+        params = (self.var_1.separator, self.var_2.separator, min_word_match_degree, prefer_num_of_letters,
+                  use_meanings, continuity_heavy_weight)
+
         matching_blocks = []
         max_matches = None
 
         i, j, k, l, r = self.find_longest_words_match(self.var_1.words[var_1_start: var_1_end],
-                                                      self.var_2.words[var_2_start: var_2_end],
-                                                      self.var_1.separator, self.var_2.separator,
-                                                      min_word_match_degree, prefer_num_of_letters,
-                                                      use_meaning, continuity_heavy_weight)
+                                                      self.var_2.words[var_2_start: var_2_end], *params)
 
         if (longest_match_len := k) < 1:
             return None
@@ -862,32 +899,51 @@ class VarsMatcher:
 
             words_1 = words_1[:i] + [self.var_2.separator] * k + words_1[i + k:]
             words_2 = words_2[:j] + [self.var_1.separator] * k + words_2[j + k:]
+
+            aux_words_2 = words_2
+            while True:     # searches for another matches in words_2 with words_1[i: i + k]
+                i_, j_, k_, l_, r_ = self.find_longest_words_match(self.var_1.words[i: i + k],
+                                                                   aux_words_2[var_2_start: var_2_end], *params)
+                if k_ < k:
+                    break
+
+                matching_blocks.append((i + i_, (j_ := var_2_start + j_), k_, l_, r_))
+                aux_words_2 = aux_words_2[:j_] + [self.var_1.separator] * k_ + aux_words_2[j_ + k_:]
+
+            aux_words_1 = words_1
+            while True:     # searches for another matches in words_1 with words_1[j: k + k]
+                i_, j_, k_, l_, r_ = self.find_longest_words_match(aux_words_1[var_1_start: var_1_end],
+                                                                   self.var_2.words[j : j + k], *params)
+                if k_ < k:
+                    break
+
+                matching_blocks.append(((i_ := var_1_start + i_), j + j_, k_, l_, r_))
+                aux_words_1 = aux_words_1[:i_] + [self.var_2.separator] * k_ + aux_words_1[i_ + k_:]
+
             i, j, k, l, r = self.find_longest_words_match(words_1[var_1_start: var_1_end],
-                                                          words_2[var_2_start: var_2_end],
-                                                          self.var_1.separator, self.var_2.separator,
-                                                          min_word_match_degree, prefer_num_of_letters,
-                                                          use_meaning, continuity_heavy_weight)
+                                                          words_2[var_2_start: var_2_end], *params)
+
         for i, j, k, l, r in matching_blocks:
-            left_max_matches = ([0, 0], 0) if i == var_1_start or j == var_2_start or \
-                (left_match := matches_table[i - var_1_start - 1][j - var_2_start - 1][var_1_start][var_2_start]) is None \
-                else (left_match.length, left_match.ratio)
-            right_max_matches = ([0, 0], 0) if i + k == var_1_end or j + k == var_2_end or \
-                (right_match := matches_table[var_1_end - (i + k) - 1][var_2_end - (j + k) - 1][i + k][j + k]) is None \
-                else (right_match.length, right_match.ratio)
-
             lengths = (k, l) if not prefer_num_of_letters else (l, k)
-            curr_lengths = [sum(len_type) for len_type in zip(left_max_matches[0], lengths, right_max_matches[0])]
 
+            left_max_matches = ([0, 0], 0) if i == var_1_start or j == var_2_start or (
+                left_match := matches_table[i - var_1_start - 1][j - var_2_start - 1][var_1_start][var_2_start]
+            ) is None else (left_match.length, left_match.ratio)
+            right_max_matches = ([0, 0], 0) if i + k == var_1_end or j + k == var_2_end or (
+                right_match := matches_table[var_1_end - (i + k) - 1][var_2_end - (j + k) - 1][i + k][j + k]
+            ) is None else (right_match.length, right_match.ratio)
+
+            curr_lengths = [sum(len_type) for len_type in zip(lengths, left_max_matches[0], right_max_matches[0])]
             curr_ratio = r + left_max_matches[1] + right_max_matches[1]
 
             if max_matches is None or curr_ratio > max_matches.ratio or \
                     curr_ratio == max_matches.ratio and curr_lengths > max_matches.length:
-                max_matches = SubMatch(curr_lengths, (i, j, k, l, r), curr_ratio)
+                max_matches = SubMatch(curr_lengths, (i, j, k, l, r), curr_ratio, False)
 
         return max_matches
 
-    def _ordered_words_and_meaning_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                                         use_meaning=False, continuity_heavy_weight=False):
+    def _words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+                                 use_meanings=False, continuity_heavy_weight=False):
         """
         A function that calculates the maximal ordered matches between two variables.
         Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
@@ -904,7 +960,7 @@ class VarsMatcher:
                                     1 - (edit distance between the words / length of the shortest word)
             prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
                                     with more words, or with more letters
-            use_meaning: boolean that set if to relate to synonyms or singular/plural words as match even the Edit
+            use_meanings: boolean that set if to relate to synonyms or singular/plural words as match even the Edit
                                     Distance between them is high, or not.
 
         Returns:
@@ -914,24 +970,24 @@ class VarsMatcher:
         len_2 = len(self.var_2.words)
 
         matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
-                        for str_2_len in range(len_2)] for str_1_len in range(len_1)]
+                          for str_2_len in range(len_2)] for str_1_len in range(len_1)]
 
-        for str_1_len in range(len_1):      # Actually the length is plus one
+        for str_1_len in range(len_1):  # Actually the length is plus one
             for str_2_len in range(len_2):  # Actually the length is plus one
                 for str_1_start in range(len_1 - str_1_len):
                     for str_2_start in range(len_2 - str_2_len):
-                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_words_matches(
-                            str_1_len, str_2_len, str_1_start, str_2_start, matches_table,
-                            min_word_match_degree, prefer_num_of_letters, use_meaning, continuity_heavy_weight)
+                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_ordered_words_matches(
+                            str_1_len, str_2_len, str_1_start, str_2_start, matches_table, min_word_match_degree,
+                            prefer_num_of_letters, use_meanings, continuity_heavy_weight)
 
-        matches_ratio, matching_blocks = self.backtrack_ordered_matches(matches_table, len_1, len_2,
-                                                                        continuity_heavy_weight=continuity_heavy_weight)
+        matches_ratio, matching_blocks = self.backtrack_matches(matches_table, len_1, len_2,
+                                                                continuity_heavy_weight=continuity_heavy_weight)
 
         return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
                               self._calc_words_match_ratio(matching_blocks, calc_spaces=True),
                               matching_blocks)
 
-    def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+    def ordered_words_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                             continuity_heavy_weight=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done
@@ -954,10 +1010,10 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._ordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                                     continuity_heavy_weight=continuity_heavy_weight)
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             continuity_heavy_weight=continuity_heavy_weight)
 
-    def ordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+    def ordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                                continuity_heavy_weight=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done
@@ -986,8 +1042,8 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._ordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                                     use_meaning=True, continuity_heavy_weight=continuity_heavy_weight)
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
 
 
 def run_test(match_maker, pairs, func, **kwargs):
@@ -1033,53 +1089,57 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_DIFFLIB_MATCHER_RATIO:
         var_names = files or [('AB_CD_EF', 'EF_CD_AB'),
-                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
-                     ('DigitPowerMultiplying', 'MultiplyDigitExponent')]
+                              ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                              ('FirstLightAFire', 'AFireLightFlickersAtFirst'),
+                              ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                              ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+                              ('DigitPowerMultiplying', 'MultiplyDigitExponent')]
         run_test(match_maker, var_names, match_maker.difflib_match_ratio)
 
     if scriptIndex & TEST_ORDERED_MATCH:
         var_names = files or [
-                     ('AB_CD_EF', 'EF_CD_AB'),
-                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
-                     ('multiword_name', 'multiple_words_name'),
+            ('AB_CD_EF', 'EF_CD_AB'),
+            ('AB_X_CDE', 'CDE_Y_AB_Y_CDE'),
+            ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+            ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+            ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+            ('multiword_name', 'multiple_words_name'),
         ]
         run_test(match_maker, var_names, match_maker.ordered_match, min_len=1)
         run_test(match_maker, var_names, match_maker.ordered_match, min_len=2)
 
     if scriptIndex & TEST_ORDERED_WORD_MATCH:
         var_names = [
-                     ('FirstLightAFire', 'LightTheFireFirst'),
-                     ('multiply_digits_exponent', 'multiply_digits_power'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
-                     ('TheWhiteHouse', 'TheHouseIsWhite'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
-                     ('multiword_name', 'multiple_words_name'),
-                     ('words_name', 'multiple_words_name'),
+            ('FirstLightAFire', 'LightTheFireFirst'),
+            ('multiply_digits_exponent', 'multiply_digits_power'),
+            ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
+            ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+            ('TheWhiteHouse', 'TheHouseIsWhite'),
+            ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+            ('multiword_name', 'multiple_words_name'),
+            ('words_name', 'multiple_words_name'),
         ]
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3)
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=0.5)
-        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3, prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3,
+                 prefer_num_of_letters=True)
 
     if scriptIndex & TEST_ORDERED_SEMANTIC_MATCH:
         var_names = files or [('FirstLightAFire', 'LightTheFireFirst'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+                              ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+                              ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         run_test(match_maker, var_names, match_maker.ordered_semantic_match, min_word_match_degree=2 / 3)
 
     if scriptIndex & TEST_UNORDERED_MATCH:
         var_names = files or [('A_CD_EF_B', 'A_EF_CD_B'),
-                     ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
-                     ('FirstLightAFire', 'AFireLightFlickersAtFirst'), ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
-                     ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+                              ('FirstLightAFire', 'LightTheFireFirst'), ('LightTheFireFirst', 'FirstLightAFire'),
+                              ('FirstLightAFire', 'AFireLightFlickersAtFirst'),
+                              ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
+                              ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM'),
+                              ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         run_test(match_maker, var_names, match_maker.unordered_match, min_len=1)
         run_test(match_maker, var_names, match_maker.unordered_match, min_len=1, continuity_heavy_weight=True)
         run_test(match_maker, var_names, match_maker.unordered_match, min_len=2)
@@ -1087,46 +1147,55 @@ if __name__ == '__main__':
 
     if scriptIndex & TEST_UNORDERED_WORDS_MATCH:
         var_names = files or [
-                     ('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
-                     ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
-                     ('FirstLightAFire', 'LightTheFireFirst'),
-                     ('FirstLightFire', 'LightFireFirst'),
-                     ('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
-                     ('multiply_digits_exponent', 'multiply_digits_power'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheWhiteHouse', 'TheHouseIsWhite'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
-                     ('abcdefghijk_abcdefgh', 'bcdefghijkl_efghijkl'),
-                     ('abcdefghijk', 'bcdefghijkl'),
-                     ('abcdefghijk', 'efghijkl'),
-                     ('abcdefgh', 'bcdefghijkl'),
-                     ('abcdefgh', 'efghijkl'),
-                     ('bcdefghijkl_efghijkl', 'abcdefghijk_abcdefgh'),
+            ('TheSchoolBusIsYellow', 'TheSchoolBosIsYellow'),
+            ('TheSchoolBusIsYellow', 'TheSchooolBosIsYellow'),
+            ('FirstLightAFire', 'LightTheFireFirst'),
+            ('FirstLightFire', 'LightFireFirst'),
+            ('TheSchoolBusIsYellow', 'YellowIsTheSchoolBusColor'),
+            ('multiply_digits_exponent', 'multiply_digits_power'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToSchoolroom'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+            ('TheWhiteHouse', 'TheHouseIsWhite'),
+            ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
+            ('abcdefghijk_abcdefgh', 'bcdefghijkl_efghijkl'),
+            ('abcdefghijk', 'bcdefghijkl'),
+            ('abcdefghijk', 'efghijkl'),
+            ('abcdefgh', 'bcdefghijkl'),
+            ('abcdefgh', 'efghijkl'),
+            ('bcdefghijkl_efghijkl', 'abcdefghijk_abcdefgh'),
         ]
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1/2, continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1,
+                 continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3,
+                 continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1 / 2,
+                 continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNORDERED_SEMANTIC_MATCH:
         var_names = files or [
-                     ('FirstLightAFire', 'LightTheFireFirst'),
-                     ('multiply_digits_exponent', 'multiply_digits_power'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
-                     ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
-                     ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
+            ('FirstLightAFire', 'LightTheFireFirst'),
+            ('multiply_digits_exponent', 'multiply_digits_power'),
+            ('TheChildArrivesToTheClassroom', 'TheChildArrivesToTheSchoolroom'),
+            ('TheChildArrivesToTheClassroom', 'TheChildGetToTheSchoolroom'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
+            ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
+            ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1, prefer_num_of_letters=True, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3, prefer_num_of_letters=True, continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
+                 prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+                 prefer_num_of_letters=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
+                 continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+                 continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
+                 prefer_num_of_letters=True, continuity_heavy_weight=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+                 prefer_num_of_letters=True, continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNEDIT_MATCH:
         var_names = files or [('A_CD_EF_B', 'A_EF_CD_B')]

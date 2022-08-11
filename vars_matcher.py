@@ -7,6 +7,7 @@ from strsimpy.levenshtein import Levenshtein
 from strsimpy.damerau import Damerau
 import csv
 from datetime import datetime
+from itertools import chain
 
 
 def get_synonyms_plural_df():
@@ -47,7 +48,7 @@ class Var:
         self.separator = separator
 
 
-class VarMatch:
+class OneMatch:
     """
     Saves all the data about one match
     """
@@ -67,12 +68,21 @@ class VarMatch:
         self.l = l
         self.r = r
 
+    def __radd__(self, other):
+        if isinstance(other, int):
+            return self.k, self.l, self.r, self.k - 1
+        elif isinstance(other, tuple):
+            return self.k + other[0], self.l + other[1], self.r + other[2], self.k - 1 + other[3]
+
+    # def __le__(self, other):
+    #     return (self.k, self.i, self.j) < (other.k, other.i, other.j)
 
 class SubMatch:
-    def __init__(self, length, longest_match, ratio=1):
+    def __init__(self, length, longest_match, ratio=1, all_matches=None):
         self.length = length
         self.ratio = ratio
         self.longest_match = longest_match
+        self.all_matches = all_matches
 
 
 class MatchingBlocks:
@@ -119,10 +129,10 @@ class MatchingBlocks:
         """
         if isinstance(m, difflib.Match):
             if m.size > 0:
-                self.matches.append(VarMatch(m.a, m.b, m.size))
+                self.matches.append(OneMatch(m.a, m.b, m.size))
         elif isinstance(m, (list, tuple)):
-            self.matches.append(VarMatch(*m))
-        elif isinstance(m, VarMatch):
+            self.matches.append(OneMatch(*m))
+        elif isinstance(m, OneMatch):
             self.matches.append(m)
         else:
             raise Exception(f'Unknown match format for the match {m} of type {type(m)}.')
@@ -352,21 +362,21 @@ class VarsMatcher:
         aux_sequence_matcher = sequence_matcher
 
         while k == longest_match_len:
-            matching_blocks.append(VarMatch(*match))
+            matching_blocks.append(OneMatch(*match))
 
             j_, k_ = j, k
             while True:
                 i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i, i + k, j_ + k_, str_2_end)
                 if k_ < k:
                     break
-                matching_blocks.append(VarMatch(*match_))
+                matching_blocks.append(OneMatch(*match_))
 
             i_, k_ = i, k
             while True:
                 i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i_ + k_, str_1_end, j, j + k)
                 if k_ < k:
                     break
-                matching_blocks.append(VarMatch(*match_))
+                matching_blocks.append(OneMatch(*match_))
 
             str_1 = str_1[:i] + separator_2 * k + str_1[i + k:]
             str_2 = str_2[:j] + separator_1 * k + str_2[j + k:]
@@ -390,12 +400,12 @@ class VarsMatcher:
                                 pow(m.k, 2) + left_max_matches[1] + right_max_matches[1])
 
             if max_matches is None or curr_all_matches > (max_matches.length, max_matches.ratio):
-                max_matches = SubMatch(curr_all_matches[0], VarMatch(m.i, m.j, m.k), curr_all_matches[1])
+                max_matches = SubMatch(curr_all_matches[0], OneMatch(m.i, m.j, m.k), curr_all_matches[1])
 
         return max_matches
 
     @staticmethod
-    def backtrack_matches(matches_table, len_1, len_2, min_len=1, continuity_heavy_weight=False):
+    def backtrack_matches(matches_table, len_1, len_2, min_len=1):
         """
         Calculates the matches that take part in the maximal ordered matching
 
@@ -435,26 +445,30 @@ class VarsMatcher:
 
             range_idx += 1
 
-        space_weight = 1 if continuity_heavy_weight \
-            else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
-
-        match_len = match_spaces_weight = match_ratio = 0
-
         for len_1_idx, len_2_idx, start_1_idx, start_2_idx in matching_indices:
             if (match_data := matches_table[len_1_idx][len_2_idx][start_1_idx][start_2_idx]) is not None and \
                     (match := match_data.longest_match) is not None:
-                match_len += match.k
-                match_ratio += match.r
-                match_spaces_weight += (match.k - 1) * space_weight
                 matching_blocks.append(match)
 
-        len_continuity_ratio = ((2 * match_len + 2 * match_spaces_weight) / denominator) \
+        return matching_blocks
+
+    @staticmethod
+    def calc_final_ratios(matching_blocks, len_1, len_2, continuity_heavy_weight=False):
+        if matching_blocks is None or len(matching_blocks) == 0:
+            return 0, 0
+
+        space_weight = 1 if continuity_heavy_weight \
+            else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
+
+        k, l, r, c = sum(matching_blocks)
+
+        len_continuity_ratio = ((2 * k + 2 * c * space_weight) / denominator) \
             if (denominator := (len_1 + len_2 + space_weight * (len_1 + len_2 - 2))) > 0 else 0
 
-        len_continuity_matching_ratio = ((2 * match_ratio + 2 * match_spaces_weight) / denominator) \
+        len_continuity_matching_ratio = ((2 * r + 2 * c * space_weight) / denominator) \
             if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
 
-        return matching_blocks, len_continuity_ratio, len_continuity_matching_ratio
+        return len_continuity_ratio, len_continuity_matching_ratio
 
     @classmethod
     def str_ordered_match(cls, str_1, str_2, separator_1, separator_2, min_len=2, continuity_heavy_weight=False):
@@ -473,8 +487,8 @@ class VarsMatcher:
                             str_1, str_2, str_1_len, str_2_len, str_1_start, str_2_start, separator_1, separator_2,
                             min_len, sequence_matcher, matches_table)
 
-        matches, continuity_ratio, _ = cls.backtrack_matches(matches_table, len_1, len_2, min_len,
-                                                          continuity_heavy_weight)
+        continuity_ratio = cls.calc_final_ratios((
+            matches := cls.backtrack_matches(matches_table, len_1, len_2, min_len)), len_1, len_2, continuity_heavy_weight)[0]
 
         return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matches)
 
@@ -721,7 +735,7 @@ class VarsMatcher:
                         largest_ratios = r
                         most_of_letters = l
 
-        return VarMatch(longest_idx_1, longest_idx_2, longest_len, most_of_letters, largest_ratios)
+        return OneMatch(longest_idx_1, longest_idx_2, longest_len, most_of_letters, largest_ratios)
 
     def _unordered_words_and_meaning_match(self, min_word_match_degree, prefer_num_of_letters,
                                            use_meanings, continuity_heavy_weight=False):
@@ -806,8 +820,11 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
-                                                       continuity_heavy_weight=continuity_heavy_weight)
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             continuity_heavy_weight=continuity_heavy_weight,
+                                             unordered_match=True)
+        # return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
+        #                                                continuity_heavy_weight=continuity_heavy_weight)
 
     def unordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                                  continuity_heavy_weight=False):
@@ -835,12 +852,49 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                                       use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+        # return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+        #                                                use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight,
+                                             unordered_match=True)
 
-    def _calc_max_ordered_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
-                                        min_word_match_degree, prefer_num_of_letters, use_meanings,
-                                        continuity_heavy_weight=False):
+    # @staticmethod
+    # def fix_duplicates(matches, prefer_num_of_letters=False):
+    #     matches = list(set(matches))
+    #
+    #     i_map = {}
+    #     j_map = {}
+    #     for i, m in enumerate(matches):
+    #         if m.i in i_map not in i_map and m.j not in j_map:
+    #             i_map[m.i] = m
+    #             j_map[m.j] = m
+    #         else:
+    #             m_strength = (m.r, m.k, m.l) if not prefer_num_of_letters else (m.r, m.l, m.k)
+    #
+    #             if m.i in i_map and m.j in j_map:
+    #                 max_match = max([m, i_map[m.i], j_map[m.j]],
+    #                                 key=lambda x: (x.r, x.k, x.l) if not prefer_num_of_letters else (x.r, x.l, x.k))
+    #
+    #
+    #             if m.i in i_map:
+    #                 existing_strength = (i_map[m.i].r, i_map[m.i].k, i_map[m.i].l) if not prefer_num_of_letters \
+    #                     else (i_map[m.i].r, i_map[m.i].l, i_map[m.i].k)
+    #                 if existing_strength < m_strength:
+    #                     i_map[m.i] = m
+    #             elif m.j in j_map:
+    #                 existing_strength = (
+    #                 j_map[m.j].r, j_map[m.j].k, j_map[m.j].l) if not prefer_num_of_letters \
+    #                     else (j_map[m.j].r, j_map[m.j].l, j_map[m.j].k)
+    #                 if existing_strength < m_strength:
+    #                     j_map[m.j] = m
+    #
+    #
+    #
+    #     return final_matches
+
+    def _calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
+                                min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                continuity_heavy_weight=False, unordered_match=False):
         """
 
         Args:
@@ -911,6 +965,7 @@ class VarsMatcher:
                                                           words_2[var_2_start: var_2_end], *params)
 
         for m in matching_blocks:
+            left_match = right_match = None
             lengths = (m.k, m.l) if not prefer_num_of_letters else (m.l, m.k)
 
             left_max_matches = ([0, 0], 0) if m.i == var_1_start or m.j == var_2_start or (
@@ -920,17 +975,31 @@ class VarsMatcher:
                 right_match := matches_table[var_1_end - (m.i + m.k) - 1][var_2_end - (m.j + m.k) - 1][m.i + m.k][m.j + m.k]
             ) is None else (right_match.length, right_match.ratio)
 
-            curr_lengths = [sum(len_type) for len_type in zip(lengths, left_max_matches[0], right_max_matches[0])]
-            curr_ratio = m.r + left_max_matches[1] + right_max_matches[1]
+            if not unordered_match:
+                curr_lengths = [sum(len_type) for len_type in zip(lengths, left_max_matches[0], right_max_matches[0])]
+                curr_ratio = m.r + left_max_matches[1] + right_max_matches[1]
+                all_matches = None
+            else:
+                left_right_match = None if m.i == var_1_start or m.j + m.k == var_2_end else \
+                    matches_table[m.i - var_1_start - 1][var_2_end - (m.j + m.k) - 1][var_1_start][m.j + m.k]
+                right_left_match = None if m.i + m.k == var_1_end or m.j == var_2_start else \
+                    matches_table[var_1_end - (m.i + m.k) - 1][m.j - var_2_start - 1][m.i + m.k][var_2_start]
 
-            if max_matches is None or curr_ratio > max_matches.ratio or \
-                    curr_ratio == max_matches.ratio and curr_lengths > max_matches.length:
-                max_matches = SubMatch(curr_lengths, VarMatch(m.i, m.j, m.k, m.l, m.r), curr_ratio)
+                # all_matches = [m] + self.fix_duplicates(chain(*[other.all_matches for other in list(
+                #     filter(None, [left_match, right_match, left_right_match, right_left_match]))]), prefer_num_of_letters)
+                all_matches = [m] + list(chain(*[other.all_matches for other in list(
+                    filter(None, [left_match, right_match, left_right_match, right_left_match]))]))
+
+                k, l, curr_ratio, _ = sum(all_matches)
+                curr_lengths = (k, l) if not prefer_num_of_letters else (l, k)
+
+            if max_matches is None or (curr_ratio, *curr_lengths) > (max_matches.ratio, *max_matches.length):
+                max_matches = SubMatch(curr_lengths, m, curr_ratio, all_matches)
 
         return max_matches
 
     def _words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
-                                 use_meanings=False, continuity_heavy_weight=False):
+                                 use_meanings=False, continuity_heavy_weight=False, unordered_match=False):
         """
         A function that calculates the maximal ordered matches between two variables.
         Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
@@ -963,12 +1032,15 @@ class VarsMatcher:
             for str_2_len in range(len_2):  # Actually the length is plus one
                 for str_1_start in range(len_1 - str_1_len):
                     for str_2_start in range(len_2 - str_2_len):
-                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_ordered_words_matches(
+                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_words_matches(
                             str_1_len, str_2_len, str_1_start, str_2_start, matches_table, min_word_match_degree,
-                            prefer_num_of_letters, use_meanings, continuity_heavy_weight)
+                            prefer_num_of_letters, use_meanings, continuity_heavy_weight, unordered_match)
 
-        matching_blocks, _, len_continuity_matching_ratio = self.backtrack_matches(
-            matches_table, len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)
+        matching_blocks = self.backtrack_matches(matches_table, len_1, len_2) if not unordered_match else \
+            sorted(m.all_matches, key=lambda x: (x.k, x.i, x.j)) if (m := matches_table[-1][-1][-1][-1]) is not None else None
+
+        len_continuity_matching_ratio = self.calc_final_ratios(matching_blocks,
+            len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
 
         return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
                               len_continuity_matching_ratio, matching_blocks)

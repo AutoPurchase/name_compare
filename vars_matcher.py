@@ -235,6 +235,14 @@ class VarsMatcher:
     def set_literal_comparison(self, literal_comparison):
         self.literal_comparison = literal_comparison
 
+    def get_norm_names(self):
+        return self.var_1.norm_name if self.var_1 is not None else None,\
+               self.var_2.norm_name if self.var_2 is not None else None
+
+    def get_words(self):
+        return self.var_1.words if self.var_1 is not None else None,\
+               self.var_2.words if self.var_2 is not None else None
+
     def _divide(self, name):
         """
         Divide the name to words (depends on the properties defined in the class's members)

@@ -95,7 +95,8 @@ class MatchingBlocks:
     LETTERS_MATCH = 0
     WORDS_MATCH = 1
 
-    def __init__(self, a, b, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH):
+    def __init__(self, a, b, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH,
+                 continuity_heavy_weight=False):
         """
         Args:
             a: first variable
@@ -108,6 +109,7 @@ class MatchingBlocks:
         self.b = b
         self.ratio = ratio
         self.matching_type = matching_type
+        self.continuity_heavy_weight = continuity_heavy_weight
 
         self.matches = []
         if matches is not None:
@@ -156,20 +158,31 @@ class MatchingBlocks:
               f'Ratio: {round(self.ratio, 3)}\n' \
               'Matches:\n'
 
+        num_of_spaces = len(self.a) + len(self.b) - 2
+        space_weight = ((2 / num_of_spaces) if num_of_spaces > 0 else 0) if not self.continuity_heavy_weight else 1
+        length = (len(self.a) + len(self.b) + space_weight * num_of_spaces)
+
         for m in self.matches:
+            partial_ratio = round(
+                2 * ((m.k if self.matching_type == self.LETTERS_MATCH else m.r) + (m.k - 1) * space_weight) / length, 3)
+            if self.matching_type == self.WORDS_MATCH:
+                local_ratio = round(2 * (m.r + (m.k - 1) * space_weight) / (2 * (m.k + (m.k - 1) * space_weight)), 3)
+
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
-                res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}'
+                res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}, '
                 if self.matching_type == self.LETTERS_MATCH:
-                    res += f': \t"{self.a[m.i: m.i + m.k]}"\n'
+                    res += f'partial ratio: {partial_ratio}: \t"{self.a[m.i: m.i + m.k]}"\n'
                 else:
-                    res += f':\n\t\t"{self.a[m.i: m.i + m.k]}" vs. \n\t\t"{self.b[m.j: m.j + m.k]}"\n'
+                    res += f'local ratio: {local_ratio}, partial ratio: {partial_ratio}:\n' \
+                           f'\t\t"{self.a[m.i: m.i + m.k]}" vs. \n\t\t"{self.b[m.j: m.j + m.k]}"\n'
             else:
-                res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}'
+                res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}, '
 
                 if self.matching_type == self.LETTERS_MATCH:
-                    res += f': \t"{"".join([self.a[i] for i in m.i])}"\n'
+                    res += f'partial ratio: {partial_ratio}: \t"{"".join([self.a[i] for i in m.i])}"\n'
                 else:
-                    res += f':\n\t\t"{"".join([self.a[i] for i in m.i])}" ' \
+                    res += f'local ratio: {local_ratio}, partial ratio: {partial_ratio}:\n' \
+                           f'\t\t"{"".join([self.a[i] for i in m.i])}" ' \
                            f'vs. \n\t\t"{"".join([self.b[j] for j in m.j])}"\n'
         return res
 
@@ -465,18 +478,18 @@ class VarsMatcher:
         if matching_blocks is None or len(matching_blocks) == 0:
             return 0, 0
 
-        space_weight = 1 if continuity_heavy_weight \
-            else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
+        num_of_spaces = len_1 + len_2 - 2
+        space_weight = ((2 / num_of_spaces) if num_of_spaces > 0 else 0) if not continuity_heavy_weight else 1
 
-        k, l, r, c = sum(matching_blocks)
+        k, l, r, s = sum(matching_blocks)
 
-        len_continuity_ratio = ((2 * k + 2 * c * space_weight) / denominator) \
-            if (denominator := (len_1 + len_2 + space_weight * (len_1 + len_2 - 2))) > 0 else 0
+        simple_ratio = ((2 * k + 2 * s * space_weight) / denominator) \
+            if (denominator := (len_1 + len_2 + space_weight * num_of_spaces)) > 0 else 0
 
-        len_continuity_matching_ratio = ((2 * r + 2 * c * space_weight) / denominator) \
-            if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
+        deeper_ratio = ((2 * r + 2 * s * space_weight) / denominator) \
+            if (denominator := len_1 + len_2 + space_weight * num_of_spaces) > 0 else 0
 
-        return len_continuity_ratio, len_continuity_matching_ratio
+        return simple_ratio, deeper_ratio
 
     @classmethod
     def str_ordered_match(cls, str_1, str_2, separator_1, separator_2, min_len=2, continuity_heavy_weight=False):
@@ -496,9 +509,12 @@ class VarsMatcher:
                             min_len, sequence_matcher, matches_table)
 
         continuity_ratio = cls.calc_final_ratios((
-            matches := cls.backtrack_matches(matches_table, len_1, len_2, min_len)), len_1, len_2, continuity_heavy_weight)[0]
+            matches := cls.backtrack_matches(
+                matches_table, len_1, len_2, min_len)), len_1, len_2, continuity_heavy_weight)[0]
 
-        return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matches)
+        return MatchingBlocks(
+            str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matches,
+            continuity_heavy_weight=continuity_heavy_weight)
 
     def ordered_match(self, min_len=2, continuity_heavy_weight=False):
         """
@@ -551,7 +567,8 @@ class VarsMatcher:
         continuity_ratio = ((2 * match_len + 2 * match_spaces_weight) / denominator) \
             if (denominator := (len_1 + len_2 + space_weight * (len_1 + len_2 - 2))) > 0 else 0
 
-        return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matching_blocks)
+        return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matching_blocks,
+                              continuity_heavy_weight=continuity_heavy_weight)
 
     def unordered_match(self, min_len=2, continuity_heavy_weight=False):
         """
@@ -627,7 +644,8 @@ class VarsMatcher:
             if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
 
         return MatchingBlocks(self.var_1.norm_name, self.var_2.norm_name, MatchingBlocks.LETTERS_MATCH,
-                              continuity_ratio, matching_blocks, MatchingBlocks.DISCONTINUOUS_MATCH)
+                              continuity_ratio, matching_blocks, MatchingBlocks.DISCONTINUOUS_MATCH,
+                              continuity_heavy_weight)
 
     @classmethod
     def words_meaning(cls, word_1, word_2):
@@ -802,7 +820,7 @@ class VarsMatcher:
             if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
 
         return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
-                              matching_ratio, matching_blocks)
+                              matching_ratio, matching_blocks, continuity_heavy_weight=continuity_heavy_weight)
 
     def unordered_words_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                               continuity_heavy_weight=False):
@@ -1051,7 +1069,8 @@ class VarsMatcher:
             len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
 
         return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
-                              len_continuity_matching_ratio, matching_blocks)
+                              len_continuity_matching_ratio, matching_blocks,
+                              continuity_heavy_weight=continuity_heavy_weight)
 
     def ordered_words_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                             continuity_heavy_weight=False):

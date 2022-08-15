@@ -846,11 +846,11 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             continuity_heavy_weight=continuity_heavy_weight,
-                                             unordered_match=True)
-        # return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
-        #                                                continuity_heavy_weight=continuity_heavy_weight)
+        # return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+        #                                      continuity_heavy_weight=continuity_heavy_weight,
+        #                                      unordered_match=True)
+        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
+                                                       continuity_heavy_weight=continuity_heavy_weight)
 
     def unordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
                                  continuity_heavy_weight=False):
@@ -878,11 +878,11 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        # return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-        #                                                use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight,
-                                             unordered_match=True)
+        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                                       use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+        # return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+        #                                      use_meanings=True, continuity_heavy_weight=continuity_heavy_weight,
+        #                                      unordered_match=True)
 
     # @staticmethod
     # def fix_duplicates(matches, prefer_num_of_letters=False):
@@ -1249,6 +1249,7 @@ if __name__ == '__main__':
             ('abcdefgh', 'bcdefghijkl'),
             ('abcdefgh', 'efghijkl'),
             ('bcdefghijkl_efghijkl', 'abcdefghijk_abcdefgh'),
+            ('EFGHIJKL_ABCDEFGH', 'CDEFGHIJ_GHIJKLMN'),
         ]
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)

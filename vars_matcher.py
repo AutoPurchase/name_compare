@@ -89,11 +89,11 @@ class MatchingBlocks:
     """
     saves all the data about matches between two variables.
     """
-    CONTINUOUS_MATCH = 0
-    DISCONTINUOUS_MATCH = 1
-
     LETTERS_MATCH = 0
     WORDS_MATCH = 1
+
+    CONTINUOUS_MATCH = 0
+    DISCONTINUOUS_MATCH = 1
 
     def __init__(self, a, b, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH,
                  continuity_heavy_weight=False):
@@ -201,7 +201,7 @@ class VarsMatcher:
     damerau = Damerau()
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_ \t\n',
-                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD, literal_comparison=False):
+                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD):
         """
         Args:
             name_1: first variable
@@ -214,7 +214,6 @@ class VarsMatcher:
                                     1: for deleting the number
                                     3: for leaving it to be a part of the word before or after it (or both),
                                         depend of another separators
-            literal_comparison: use the variable as is
         """
         self.var_1 = None
         self.var_2 = None
@@ -222,7 +221,6 @@ class VarsMatcher:
         self.word_separators = word_separators
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
-        self.literal_comparison = literal_comparison
 
         self.set_names(name_1, name_2)
 
@@ -245,8 +243,11 @@ class VarsMatcher:
     def set_word_separators(self, word_separators):
         self.word_separators = word_separators
 
-    def set_literal_comparison(self, literal_comparison):
-        self.literal_comparison = literal_comparison
+    def set_support_camel_case(self, support_camel_case):
+        self.support_camel_case = support_camel_case
+
+    def set_numbers_behavior(self, numbers_behavior):
+        self.numbers_behavior = numbers_behavior
 
     def get_norm_names(self):
         return self.var_1.norm_name if self.var_1 is not None else None,\
@@ -266,9 +267,6 @@ class VarsMatcher:
         Returns:
             a list of all the words of the variable
         """
-        if self.literal_comparison:
-            return [name]
-
         name = re.sub(f'[^ -~]', self.word_separators[0], name)  # remove all non-visible characters
 
         if self.support_camel_case:
@@ -303,9 +301,10 @@ class VarsMatcher:
         if (sep_condition := lambda x: x not in name and (other_var is None or x != other_var.separator))(default_sep):
             return default_sep
 
-        for i in range(0x21, 0x80):
+        for i in range(0x1, 0x100):
             if sep_condition(c := chr(i)):
                 return c
+        raise Exception('No separator can be found. You used all the characters in ASCII!')
 
     def edit_distance(self, enable_transposition=False):
         """
@@ -1072,7 +1071,7 @@ class VarsMatcher:
                               len_continuity_matching_ratio, matching_blocks,
                               continuity_heavy_weight=continuity_heavy_weight)
 
-    def ordered_words_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+    def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
                             continuity_heavy_weight=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done
@@ -1098,7 +1097,7 @@ class VarsMatcher:
         return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                              continuity_heavy_weight=continuity_heavy_weight)
 
-    def ordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+    def ordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
                                continuity_heavy_weight=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done

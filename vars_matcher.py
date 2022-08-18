@@ -195,12 +195,14 @@ class VarsMatcher:
     NUMBERS_LEAVE = 2
 
     Synonyms = Plural = None
+    StopWords = ['a', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'but', 'by', 'for', 'however', 'if', 'not',
+                 'of', 'on', 'or', 'so', 'the', 'there', 'was', 'were', 'whatever', 'whether', 'would']
 
     levenshtein = Levenshtein()
     damerau = Damerau()
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_ \t\n',
-                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD):
+                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD, ignore_stop_words=False):
         """
         Args:
             name_1: first variable
@@ -220,6 +222,7 @@ class VarsMatcher:
         self.word_separators = word_separators
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
+        self.ignore_stop_words = ignore_stop_words
 
         self.set_names(name_1, name_2)
 
@@ -281,7 +284,12 @@ class VarsMatcher:
         if not self.case_sensitivity:
             name = name.lower()
 
-        return list(filter(None, re.split(fr'[{self.word_separators}]', name)))
+        words = list(filter(None, re.split(fr'[{self.word_separators}]', name)))
+
+        if self.ignore_stop_words is True:
+            words = list(filter(lambda x: x not in self.StopWords, words))
+
+        return words
 
     @staticmethod
     def _find_separator(name, other_var, default_sep):
@@ -1023,7 +1031,7 @@ class VarsMatcher:
 def run_test(match_maker, pairs, func, **kwargs):
     for var_1, var_2 in pairs:
         match_maker.set_names(var_1, var_2)
-        start_time = datetime.now()
+        # start_time = datetime.now()
         print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
               f'{", ".join([k + "=" + str(v if not isinstance(v, float) else round(v, 3)) for k, v in kwargs.items()])})\n{func(**kwargs)}')
         # print(f'Test time for {func.__name__}: {datetime.now() - start_time}')

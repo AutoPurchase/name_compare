@@ -7,7 +7,6 @@ from strsimpy.levenshtein import Levenshtein
 from strsimpy.damerau import Damerau
 import csv
 from datetime import datetime
-from itertools import chain
 
 
 def get_synonyms_plural_df():
@@ -371,42 +370,14 @@ class VarsMatcher:
         str_1_end = str_1_start + str_1_len + 1
         str_2_end = str_2_start + str_2_len + 1
 
-        matching_blocks = []
         max_matches = None
 
-        i, j, k = match = sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
+        matches = sequence_matcher.find_longest_matches(str_1_start, str_1_end, str_2_start, str_2_end)
 
-        if (longest_match_len := k) < min_len:
+        if matches[0][2] < min_len:
             return None
 
-        aux_sequence_matcher = sequence_matcher
-
-        while k == longest_match_len:
-            matching_blocks.append(OneMatch(*match))
-
-            j_, k_ = j, k
-            while True:
-                i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i, i + k, j_ + k_, str_2_end)
-                if k_ < k:
-                    break
-                matching_blocks.append(OneMatch(*match_))
-
-            i_, k_ = i, k
-            while True:
-                i_, j_, k_ = match_ = aux_sequence_matcher.find_longest_match(i_ + k_, str_1_end, j, j + k)
-                if k_ < k:
-                    break
-                matching_blocks.append(OneMatch(*match_))
-
-            str_1 = str_1[:i] + separator_2 * k + str_1[i + k:]
-            str_2 = str_2[:j] + separator_1 * k + str_2[j + k:]
-
-            if aux_sequence_matcher is sequence_matcher:
-                aux_sequence_matcher = ExtendedSequenceMatcher()
-
-            aux_sequence_matcher.set_seq1(str_1)
-            aux_sequence_matcher.update_matching_seq2(str_2, j, k)
-            i, j, k = match = aux_sequence_matcher.find_longest_match(str_1_start, str_1_end, str_2_start, str_2_end)
+        matching_blocks = (OneMatch(*match) for match in matches)
 
         for m in matching_blocks:
             left_max_matches = (0, 0) if m.i == str_1_start or m.j == str_2_start or (
@@ -425,7 +396,7 @@ class VarsMatcher:
         return max_matches
 
     @staticmethod
-    def backtrack_matches(matches_table, len_1, len_2, min_len=1):
+    def _backtrack_matches(matches_table, len_1, len_2, min_len=1):
         """
         Calculates the matches that take part in the maximal ordered matching
 
@@ -473,7 +444,7 @@ class VarsMatcher:
         return matching_blocks
 
     @staticmethod
-    def calc_final_ratios(matching_blocks, len_1, len_2, continuity_heavy_weight=False):
+    def _calc_final_ratios(matching_blocks, len_1, len_2, continuity_heavy_weight=False):
         if matching_blocks is None or len(matching_blocks) == 0:
             return 0, 0
 
@@ -491,7 +462,7 @@ class VarsMatcher:
         return simple_ratio, deeper_ratio
 
     @classmethod
-    def str_ordered_match(cls, str_1, str_2, separator_1, separator_2, min_len=2, continuity_heavy_weight=False):
+    def _str_ordered_match(cls, str_1, str_2, separator_1, separator_2, min_len=2, continuity_heavy_weight=False):
         len_1 = len(str_1)
         len_2 = len(str_2)
         sequence_matcher = ExtendedSequenceMatcher(a=str_1, b=str_2)
@@ -507,36 +478,17 @@ class VarsMatcher:
                             str_1, str_2, str_1_len, str_2_len, str_1_start, str_2_start, separator_1, separator_2,
                             min_len, sequence_matcher, matches_table)
 
-        continuity_ratio = cls.calc_final_ratios((
-            matches := cls.backtrack_matches(
+        continuity_ratio = cls._calc_final_ratios((
+            matches := cls._backtrack_matches(
                 matches_table, len_1, len_2, min_len)), len_1, len_2, continuity_heavy_weight)[0]
 
         return MatchingBlocks(
             str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matches,
             continuity_heavy_weight=continuity_heavy_weight)
 
-    def ordered_match(self, min_len=2, continuity_heavy_weight=False):
-        """
-        A function that calculates the maximal ordered matches between two variables.
-        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
-        names: 'FirstLightAFire' and 'LightTheFireFirst', it will find at first the match 'first' at the beginning of
-        the first name and at the end of the second name, and then stopping because it saves the order of the matches,
-        and any other match will be AFTER the first one in the first match and BEFORE it in the second name.
-        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
-        then 'Fire' (9 letters total, vs. 5 letter in the difflib library).
-
-        Args:
-            min_len: minimum length of letters that related as a match
-
-        Returns:
-            MatchingBlocks
-        """
-        return self.str_ordered_match(self.var_1.norm_name, self.var_2.norm_name,
-                                      self.var_1.separator, self.var_2.separator, min_len, continuity_heavy_weight)
-
     @staticmethod
-    def str_unordered_match(str_1, str_2, separator_1, separator_2,
-                            min_len=2, continuity_heavy_weight=False):
+    def _str_unordered_match(str_1, str_2, separator_1, separator_2,
+                             min_len=2, continuity_heavy_weight=False):
         modified_str_1 = str_1[:]
         modified_str_2 = str_2[:]
 
@@ -569,6 +521,25 @@ class VarsMatcher:
         return MatchingBlocks(str_1, str_2, MatchingBlocks.LETTERS_MATCH, continuity_ratio, matching_blocks,
                               continuity_heavy_weight=continuity_heavy_weight)
 
+    def ordered_match(self, min_len=2, continuity_heavy_weight=False):
+        """
+        A function that calculates the maximal ordered matches between two variables.
+        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
+        names: 'FirstLightAFire' and 'LightTheFireFirst', it will find at first the match 'first' at the beginning of
+        the first name and at the end of the second name, and then stopping because it saves the order of the matches,
+        and any other match will be AFTER the first one in the first match and BEFORE it in the second name.
+        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
+        then 'Fire' (9 letters total, vs. 5 letter in the difflib library).
+
+        Args:
+            min_len: minimum length of letters that related as a match
+
+        Returns:
+            MatchingBlocks
+        """
+        return self._str_ordered_match(self.var_1.norm_name, self.var_2.norm_name,
+                                       self.var_1.separator, self.var_2.separator, min_len, continuity_heavy_weight)
+
     def unordered_match(self, min_len=2, continuity_heavy_weight=False):
         """
         A function that calculates match ratio between two names, but doesn't requires order between matches. It means that
@@ -589,8 +560,8 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self.str_unordered_match(self.var_1.norm_name, self.var_2.norm_name,
-                                        self.var_1.separator, self.var_2.separator, min_len, continuity_heavy_weight)
+        return self._str_unordered_match(self.var_1.norm_name, self.var_2.norm_name,
+                                         self.var_1.separator, self.var_2.separator, min_len, continuity_heavy_weight)
 
     def unedit_match(self, min_len=2, continuity_heavy_weight=False):
         """
@@ -678,9 +649,9 @@ class VarsMatcher:
         return False
 
     @classmethod
-    def find_longest_words_matches(cls, var_1_list, var_2_list, separator_1, separator_2,
-                                   min_word_match_degree, prefer_num_of_letters, use_meanings,
-                                   continuity_heavy_weight=None):
+    def _find_longest_words_matches(cls, var_1_list, var_2_list, separator_1, separator_2,
+                                    min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                    continuity_heavy_weight=None):
         """
         A function that finds the longest match OF WHOLE WORDS, means the longest list of matched words.
 
@@ -732,8 +703,8 @@ class VarsMatcher:
                     if var_1_list[i + k] == var_2_list[j + k]:
                         ratio = 1
                     else:
-                        ratio = cls.str_ordered_match(var_1_list[i + k], var_2_list[j + k], separator_1, separator_2, 1,
-                                                      continuity_heavy_weight).ratio
+                        ratio = cls._str_ordered_match(var_1_list[i + k], var_2_list[j + k], separator_1, separator_2, 1,
+                                                       continuity_heavy_weight).ratio
 
                     if ratio < min_word_match_degree:
                         if use_meanings and cls.words_meaning(var_1_list[i + k], var_2_list[j + k]):
@@ -759,14 +730,174 @@ class VarsMatcher:
 
         return res
 
+    def _calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
+                                min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                continuity_heavy_weight=False):
+        """
+
+        Args:
+            var_1_len: the length minus 1 of the substring of self.var_1
+            var_2_len: the length minus 1 of the substring of self.var_2
+            var_1_start: the start point of the substring of self.var_1
+            var_2_start: the start point of the substring of self.var_2
+            matches_table: a table that contains all the matches in smaller substrings
+            min_word_match_degree: the minimum ratio between two words to be consider as a match
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            use_meanings: boolean value that set if to match two words with similar meaning, or not
+
+        Returns:
+            the maximal match for this substring.
+        """
+        var_1_end = var_1_start + var_1_len + 1
+        var_2_end = var_2_start + var_2_len + 1
+
+        params = (self.var_1.separator, self.var_2.separator, min_word_match_degree, prefer_num_of_letters,
+                  use_meanings, continuity_heavy_weight)
+
+        max_matches = None
+
+        longest_matches = self._find_longest_words_matches(self.var_1.words[var_1_start: var_1_end],
+                                          self.var_2.words[var_2_start: var_2_end], *params)
+
+        if longest_matches is None or longest_matches[0].k < 1:
+            return None
+
+        for long_match in longest_matches:
+            long_match.i += var_1_start
+            long_match.j += var_2_start
+
+            left_match = right_match = None
+            lengths = (long_match.k, long_match.l) if not prefer_num_of_letters else (long_match.l, long_match.k)
+
+            left_max_matches = ([0, 0], 0) if long_match.i == var_1_start or long_match.j == var_2_start or (
+                left_match := matches_table[long_match.i - var_1_start - 1][long_match.j - var_2_start - 1][var_1_start][var_2_start]
+            ) is None else (left_match.length, left_match.ratio)
+            right_max_matches = ([0, 0], 0) if long_match.i + long_match.k == var_1_end or long_match.j + long_match.k == var_2_end or (
+                right_match := matches_table[var_1_end - (long_match.i + long_match.k) - 1][var_2_end - (long_match.j + long_match.k) - 1][long_match.i + long_match.k][long_match.j + long_match.k]
+            ) is None else (right_match.length, right_match.ratio)
+
+            curr_lengths = [sum(len_type) for len_type in zip(lengths, left_max_matches[0], right_max_matches[0])]
+            curr_ratio = long_match.r + left_max_matches[1] + right_max_matches[1]
+
+            if max_matches is None or (curr_ratio, *curr_lengths) > (max_matches.ratio, *max_matches.length):
+                max_matches = SubMatch(curr_lengths, long_match, curr_ratio)
+
+        return max_matches
+
+    def _words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+                                 use_meanings=False, continuity_heavy_weight=False):
+        """
+        A function that calculates the maximal ordered matches between two variables.
+        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
+        names: 'FirstLightAFire' and 'LightTheFireFirst', it will find at first the match 'first' at the beginning of
+        the first name and at the end of the second name, and then stopping because it saves the order of the matches,
+        and any other match will be AFTER the first one in the first match and BEFORE it in the second name.
+        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
+        then 'Fire' (9 letters total, vs. 5 letter in the difflib library).
+
+        Args:
+            min_len: minimum length of letters that related as a match
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            use_meanings: boolean that set if to relate to synonyms or singular/plural words as match even the Edit
+                                    Distance between them is high, or not.
+
+        Returns:
+            MatchingBlocks
+        """
+        len_1 = len(self.var_1.words)
+        len_2 = len(self.var_2.words)
+
+        matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
+                          for str_2_len in range(len_2)] for str_1_len in range(len_1)]
+
+        for str_1_len in range(len_1):  # Actually the length is plus one
+            for str_2_len in range(len_2):  # Actually the length is plus one
+                for str_1_start in range(len_1 - str_1_len):
+                    for str_2_start in range(len_2 - str_2_len):
+                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_words_matches(
+                            str_1_len, str_2_len, str_1_start, str_2_start, matches_table, min_word_match_degree,
+                            prefer_num_of_letters, use_meanings, continuity_heavy_weight)
+
+        matching_blocks = self._backtrack_matches(matches_table, len_1, len_2)
+
+        len_continuity_matching_ratio = self._calc_final_ratios(matching_blocks,
+                                                                len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
+
+        return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
+                              len_continuity_matching_ratio, matching_blocks,
+                              continuity_heavy_weight=continuity_heavy_weight)
+
+    def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+                            continuity_heavy_weight=False):
+        """
+        A function that calculates the maximal ordered matches between two variables, while the comparisons are done
+        on each word of the variables as a unit, and not on the letters.
+        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
+        lists of words: ['first', 'light', 'a', 'fire'] and ['light', 'the', 'fire', 'first'], it will find at first the
+        match 'first' at the beginning of the first list and at the end of the second list, and then stopping, because
+        it saves the order of the matches, and any other match will be AFTER the first one in the first match and BEFORE
+        it in the second name.
+        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
+        then 'fire' (2 words total, vs. 1 word in the difflib library).
+
+        Args:
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+
+        Returns:
+            MatchingBlocks
+        """
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             continuity_heavy_weight=continuity_heavy_weight)
+
+    def ordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+                               continuity_heavy_weight=False):
+        """
+        A function that calculates the maximal ordered matches between two variables, while the comparisons are done
+        on each word of the variables as a unit, and not on the letters.
+        In addition, this function relates synonyms and plurals as a match.
+        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
+        lists of words: ['first', 'light', 'a', 'fire'] and ['light', 'the', 'fire', 'first'], it will find at first the
+        match 'first' at the beginning of the first list and at the end of the second list, and then stopping, because
+        it saves the order of the matches, and any other match will be AFTER the first one in the first match and BEFORE
+        it in the second name.
+        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
+        then 'fire' (2 words total, vs. 1 word in the difflib library).
+
+        Args:
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
+                                    Match Degree between two words equal to:
+                                    1 - (edit distance between the words / length of the shortest word)
+            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
+                                    with more words, or with more letters
+
+        Returns:
+            MatchingBlocks
+        """
+        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+
     def _unordered_words_find_max_sub_match(self, words_1, words_2, min_word_match_degree, prefer_num_of_letters,
                                             use_meanings, continuity_heavy_weight):
         max_sub_match = SubMatch((0, 0), 0, 0, [])
 
-        longest_matches = self.find_longest_words_matches(words_1, words_2,
-                                                          self.var_1.separator, self.var_2.separator,
-                                                          min_word_match_degree, prefer_num_of_letters, use_meanings,
-                                                          continuity_heavy_weight)
+        longest_matches = self._find_longest_words_matches(words_1, words_2,
+                                                           self.var_1.separator, self.var_2.separator,
+                                                           min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                                           continuity_heavy_weight)
         if longest_matches is None:
             return max_sub_match
 
@@ -887,166 +1018,6 @@ class VarsMatcher:
         """
         return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
                                                        use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
-
-    def _calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
-                                min_word_match_degree, prefer_num_of_letters, use_meanings,
-                                continuity_heavy_weight=False):
-        """
-
-        Args:
-            var_1_len: the length minus 1 of the substring of self.var_1
-            var_2_len: the length minus 1 of the substring of self.var_2
-            var_1_start: the start point of the substring of self.var_1
-            var_2_start: the start point of the substring of self.var_2
-            matches_table: a table that contains all the matches in smaller substrings
-            min_word_match_degree: the minimum ratio between two words to be consider as a match
-            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
-                                    with more words, or with more letters
-            use_meanings: boolean value that set if to match two words with similar meaning, or not
-
-        Returns:
-            the maximal match for this substring.
-        """
-        var_1_end = var_1_start + var_1_len + 1
-        var_2_end = var_2_start + var_2_len + 1
-
-        params = (self.var_1.separator, self.var_2.separator, min_word_match_degree, prefer_num_of_letters,
-                  use_meanings, continuity_heavy_weight)
-
-        max_matches = None
-
-        longest_matches = self.find_longest_words_matches(self.var_1.words[var_1_start: var_1_end],
-                                          self.var_2.words[var_2_start: var_2_end], *params)
-
-        if longest_matches is None or longest_matches[0].k < 1:
-            return None
-
-        for long_match in longest_matches:
-            long_match.i += var_1_start
-            long_match.j += var_2_start
-
-            left_match = right_match = None
-            lengths = (long_match.k, long_match.l) if not prefer_num_of_letters else (long_match.l, long_match.k)
-
-            left_max_matches = ([0, 0], 0) if long_match.i == var_1_start or long_match.j == var_2_start or (
-                left_match := matches_table[long_match.i - var_1_start - 1][long_match.j - var_2_start - 1][var_1_start][var_2_start]
-            ) is None else (left_match.length, left_match.ratio)
-            right_max_matches = ([0, 0], 0) if long_match.i + long_match.k == var_1_end or long_match.j + long_match.k == var_2_end or (
-                right_match := matches_table[var_1_end - (long_match.i + long_match.k) - 1][var_2_end - (long_match.j + long_match.k) - 1][long_match.i + long_match.k][long_match.j + long_match.k]
-            ) is None else (right_match.length, right_match.ratio)
-
-            curr_lengths = [sum(len_type) for len_type in zip(lengths, left_max_matches[0], right_max_matches[0])]
-            curr_ratio = long_match.r + left_max_matches[1] + right_max_matches[1]
-
-            if max_matches is None or (curr_ratio, *curr_lengths) > (max_matches.ratio, *max_matches.length):
-                max_matches = SubMatch(curr_lengths, long_match, curr_ratio)
-
-        return max_matches
-
-    def _words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
-                                 use_meanings=False, continuity_heavy_weight=False):
-        """
-        A function that calculates the maximal ordered matches between two variables.
-        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
-        names: 'FirstLightAFire' and 'LightTheFireFirst', it will find at first the match 'first' at the beginning of
-        the first name and at the end of the second name, and then stopping because it saves the order of the matches,
-        and any other match will be AFTER the first one in the first match and BEFORE it in the second name.
-        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
-        then 'Fire' (9 letters total, vs. 5 letter in the difflib library).
-
-        Args:
-            min_len: minimum length of letters that related as a match
-            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
-                                    Match Degree between two words equal to:
-                                    1 - (edit distance between the words / length of the shortest word)
-            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
-                                    with more words, or with more letters
-            use_meanings: boolean that set if to relate to synonyms or singular/plural words as match even the Edit
-                                    Distance between them is high, or not.
-
-        Returns:
-            MatchingBlocks
-        """
-        len_1 = len(self.var_1.words)
-        len_2 = len(self.var_2.words)
-
-        matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
-                          for str_2_len in range(len_2)] for str_1_len in range(len_1)]
-
-        for str_1_len in range(len_1):  # Actually the length is plus one
-            for str_2_len in range(len_2):  # Actually the length is plus one
-                for str_1_start in range(len_1 - str_1_len):
-                    for str_2_start in range(len_2 - str_2_len):
-                        matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_words_matches(
-                            str_1_len, str_2_len, str_1_start, str_2_start, matches_table, min_word_match_degree,
-                            prefer_num_of_letters, use_meanings, continuity_heavy_weight)
-
-        matching_blocks = self.backtrack_matches(matches_table, len_1, len_2)
-
-        len_continuity_matching_ratio = self.calc_final_ratios(matching_blocks,
-            len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
-
-        return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
-                              len_continuity_matching_ratio, matching_blocks,
-                              continuity_heavy_weight=continuity_heavy_weight)
-
-    def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                            continuity_heavy_weight=False):
-        """
-        A function that calculates the maximal ordered matches between two variables, while the comparisons are done
-        on each word of the variables as a unit, and not on the letters.
-        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
-        lists of words: ['first', 'light', 'a', 'fire'] and ['light', 'the', 'fire', 'first'], it will find at first the
-        match 'first' at the beginning of the first list and at the end of the second list, and then stopping, because
-        it saves the order of the matches, and any other match will be AFTER the first one in the first match and BEFORE
-        it in the second name.
-        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
-        then 'fire' (2 words total, vs. 1 word in the difflib library).
-
-        Args:
-            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
-                                    Match Degree between two words equal to:
-                                    1 - (edit distance between the words / length of the shortest word)
-            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
-                                    with more words, or with more letters
-
-        Returns:
-            MatchingBlocks
-        """
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             continuity_heavy_weight=continuity_heavy_weight)
-
-    def ordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                               continuity_heavy_weight=False):
-        """
-        A function that calculates the maximal ordered matches between two variables, while the comparisons are done
-        on each word of the variables as a unit, and not on the letters.
-        In addition, this function relates synonyms and plurals as a match.
-        Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
-        lists of words: ['first', 'light', 'a', 'fire'] and ['light', 'the', 'fire', 'first'], it will find at first the
-        match 'first' at the beginning of the first list and at the end of the second list, and then stopping, because
-        it saves the order of the matches, and any other match will be AFTER the first one in the first match and BEFORE
-        it in the second name.
-        However, Our algorithm, will check all the options, and in that case will find at first the match 'light', and
-        then 'fire' (2 words total, vs. 1 word in the difflib library).
-
-        Args:
-            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
-                                    Match Degree between two words equal to:
-                                    1 - (edit distance between the words / length of the shortest word)
-            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
-                                    with more words, or with more letters
-            min_word_match_degree: float value in the range (0, 1] that set the min Match Degree between two words.
-                                    Match Degree between two words equal to:
-                                    1 - (edit distance between the words / length of the shortest word)
-            prefer_num_of_letters: boolean value that set if 'longest match' (that we search at first) will be the one
-                                    with more words, or with more letters
-
-        Returns:
-            MatchingBlocks
-        """
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
 
 
 def run_test(match_maker, pairs, func, **kwargs):

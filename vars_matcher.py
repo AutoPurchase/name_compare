@@ -195,14 +195,12 @@ class VarsMatcher:
     NUMBERS_LEAVE = 2
 
     Synonyms = Plural = None
-    StopWords = ['a', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'but', 'by', 'for', 'however', 'if', 'not',
-                 'of', 'on', 'or', 'so', 'the', 'there', 'was', 'were', 'whatever', 'whether', 'would']
 
     levenshtein = Levenshtein()
     damerau = Damerau()
 
     def __init__(self, name_1=None, name_2=None, case_sensitivity=False, word_separators='_ \t\n',
-                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD, ignore_stop_words=False):
+                 support_camel_case=True, numbers_behavior=NUMBERS_SEPARATE_WORD, stop_words=None):
         """
         Args:
             name_1: first variable
@@ -222,7 +220,10 @@ class VarsMatcher:
         self.word_separators = word_separators
         self.support_camel_case = support_camel_case
         self.numbers_behavior = numbers_behavior
-        self.ignore_stop_words = ignore_stop_words
+
+        self.stop_words = stop_words if stop_words is not None else \
+            ['a', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'but', 'by', 'for', 'however', 'if', 'not',
+             'of', 'on', 'or', 'so', 'the', 'there', 'was', 'were', 'whatever', 'whether', 'would']
 
         self.set_names(name_1, name_2)
 
@@ -251,6 +252,9 @@ class VarsMatcher:
     def set_numbers_behavior(self, numbers_behavior):
         self.numbers_behavior = numbers_behavior
 
+    def set_stop_words(self, stop_words):
+        self.stop_words = stop_words
+
     def get_norm_names(self):
         return self.var_1.norm_name if self.var_1 is not None else None,\
                self.var_2.norm_name if self.var_2 is not None else None
@@ -258,6 +262,9 @@ class VarsMatcher:
     def get_words(self):
         return self.var_1.words if self.var_1 is not None else None,\
                self.var_2.words if self.var_2 is not None else None
+
+    def get_stop_words(self):
+        return self.stop_words
 
     def _divide(self, name):
         """
@@ -285,9 +292,6 @@ class VarsMatcher:
             name = name.lower()
 
         words = list(filter(None, re.split(fr'[{self.word_separators}]', name)))
-
-        if self.ignore_stop_words is True:
-            words = list(filter(lambda x: x not in self.StopWords, words))
 
         return words
 
@@ -738,7 +742,7 @@ class VarsMatcher:
 
         return res
 
-    def _calc_max_words_matches(self, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
+    def _calc_max_words_matches(self, words_1, words_2, var_1_len, var_2_len, var_1_start, var_2_start, matches_table,
                                 min_word_match_degree, prefer_num_of_letters, use_meanings,
                                 continuity_heavy_weight=False):
         """
@@ -765,8 +769,8 @@ class VarsMatcher:
 
         max_matches = None
 
-        longest_matches = self._find_longest_words_matches(self.var_1.words[var_1_start: var_1_end],
-                                          self.var_2.words[var_2_start: var_2_end], *params)
+        longest_matches = self._find_longest_words_matches(words_1[var_1_start: var_1_end],
+                                                           words_2[var_2_start: var_2_end], *params)
 
         if longest_matches is None or longest_matches[0].k < 1:
             return None
@@ -793,8 +797,8 @@ class VarsMatcher:
 
         return max_matches
 
-    def _words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
-                                 use_meanings=False, continuity_heavy_weight=False):
+    def _ordered_words_and_meaning_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
+                                         use_meanings=False, continuity_heavy_weight=False, ignore_stop_words=False):
         """
         A function that calculates the maximal ordered matches between two variables.
         Note: the function of difflib library doesn't find always the maximal match. For example, when comparing the two
@@ -817,8 +821,13 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        len_1 = len(self.var_1.words)
-        len_2 = len(self.var_2.words)
+        words_1 = self.var_1.words if not ignore_stop_words else list(filter(
+            lambda x: x not in self.stop_words, self.var_1.words)) 
+        words_2 = self.var_2.words if not ignore_stop_words else list(filter(
+            lambda x: x not in self.stop_words, self.var_2.words)) 
+        
+        len_1 = len(words_1)
+        len_2 = len(words_2)
 
         matches_table = [[[[None for _ in range(len_2 - str_2_len)] for _ in range(len_1 - str_1_len)]
                           for str_2_len in range(len_2)] for str_1_len in range(len_1)]
@@ -828,20 +837,20 @@ class VarsMatcher:
                 for str_1_start in range(len_1 - str_1_len):
                     for str_2_start in range(len_2 - str_2_len):
                         matches_table[str_1_len][str_2_len][str_1_start][str_2_start] = self._calc_max_words_matches(
-                            str_1_len, str_2_len, str_1_start, str_2_start, matches_table, min_word_match_degree,
-                            prefer_num_of_letters, use_meanings, continuity_heavy_weight)
+                            words_1, words_2, str_1_len, str_2_len, str_1_start, str_2_start, matches_table,
+                            min_word_match_degree, prefer_num_of_letters, use_meanings, continuity_heavy_weight)
 
         matching_blocks = self._backtrack_matches(matches_table, len_1, len_2)
 
-        len_continuity_matching_ratio = self._calc_final_ratios(matching_blocks,
-                                                                len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
+        len_continuity_matching_ratio = self._calc_final_ratios(
+            matching_blocks, len_1, len_2, continuity_heavy_weight=continuity_heavy_weight)[1]
 
-        return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
+        return MatchingBlocks(words_1, words_2, MatchingBlocks.WORDS_MATCH,
                               len_continuity_matching_ratio, matching_blocks,
                               continuity_heavy_weight=continuity_heavy_weight)
 
     def ordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                            continuity_heavy_weight=False):
+                            continuity_heavy_weight=False, ignore_stop_words=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done
         on each word of the variables as a unit, and not on the letters.
@@ -863,11 +872,12 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             continuity_heavy_weight=continuity_heavy_weight)
+        return self._ordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                                     continuity_heavy_weight=continuity_heavy_weight,
+                                                     ignore_stop_words=ignore_stop_words)
 
     def ordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                               continuity_heavy_weight=False):
+                               continuity_heavy_weight=False, ignore_stop_words=False):
         """
         A function that calculates the maximal ordered matches between two variables, while the comparisons are done
         on each word of the variables as a unit, and not on the letters.
@@ -895,8 +905,9 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                             use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+        return self._ordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
+                                                     use_meanings=True, continuity_heavy_weight=continuity_heavy_weight,
+                                                     ignore_stop_words=ignore_stop_words)
 
     def _unordered_words_find_max_sub_match(self, words_1, words_2, min_word_match_degree, prefer_num_of_letters,
                                             use_meanings, continuity_heavy_weight):
@@ -926,8 +937,8 @@ class VarsMatcher:
 
         return max_sub_match
 
-    def _unordered_words_and_meaning_match(self, min_word_match_degree, prefer_num_of_letters,
-                                           use_meanings, continuity_heavy_weight=False):
+    def _unordered_words_and_meaning_match(self, min_word_match_degree, prefer_num_of_letters, use_meanings,
+                                           continuity_heavy_weight=False, ignore_stop_words=False):
         """
             A function that finds all the matches between the words of var_1 and var_2, in In descending order of number
             of the words or letters.
@@ -951,13 +962,18 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        len_1 = len(self.var_1.words)
-        len_2 = len(self.var_2.words)
+        words_1 = self.var_1.words if not ignore_stop_words else list(filter(
+            lambda x: x not in self.stop_words, self.var_1.words))
+        words_2 = self.var_2.words if not ignore_stop_words else list(filter(
+            lambda x: x not in self.stop_words, self.var_2.words))
+
+        len_1 = len(words_1)
+        len_2 = len(words_2)
 
         space_weight = 1 if continuity_heavy_weight \
             else ((2 / num_of_spaces) if (num_of_spaces := len_1 + len_2 - 2) > 0 else 0)
 
-        max_sub_match = self._unordered_words_find_max_sub_match(self.var_1.words, self.var_2.words,
+        max_sub_match = self._unordered_words_find_max_sub_match(words_1, words_2,
                                                                  min_word_match_degree, prefer_num_of_letters,
                                                                  use_meanings, continuity_heavy_weight)
 
@@ -967,12 +983,12 @@ class VarsMatcher:
         matching_ratio = ((2 * ratio + 2 * match_spaces_weight) / denominator) \
             if (denominator := len_1 + len_2 + space_weight * (len_1 + len_2 - 2)) > 0 else 0
 
-        return MatchingBlocks(self.var_1.words, self.var_2.words, MatchingBlocks.WORDS_MATCH,
+        return MatchingBlocks(words_1, words_2, MatchingBlocks.WORDS_MATCH,
                               matching_ratio, max_sub_match.all_matches,
                               continuity_heavy_weight=continuity_heavy_weight)
 
     def unordered_words_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
-                              continuity_heavy_weight=False):
+                              continuity_heavy_weight=False, ignore_stop_words=False):
         """
         A function that calculates the ratio and the matches between the words of var_1 and var_2, but doesn't
         relate synonyms and plurals as a match.
@@ -996,10 +1012,11 @@ class VarsMatcher:
             MatchingBlocks
         """
         return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=False,
-                                                       continuity_heavy_weight=continuity_heavy_weight)
+                                                       continuity_heavy_weight=continuity_heavy_weight,
+                                                       ignore_stop_words=ignore_stop_words)
 
-    def unordered_semantic_match(self, min_word_match_degree=2 / 3, prefer_num_of_letters=False,
-                                 continuity_heavy_weight=False):
+    def unordered_semantic_match(self, min_word_match_degree=2/3, prefer_num_of_letters=False,
+                                 continuity_heavy_weight=False, ignore_stop_words=False):
         """
 
         A function that calculates the ratio and the matches between the words of var_1 and var_2, and relates synonyms
@@ -1024,8 +1041,9 @@ class VarsMatcher:
         Returns:
             MatchingBlocks
         """
-        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters,
-                                                       use_meanings=True, continuity_heavy_weight=continuity_heavy_weight)
+        return self._unordered_words_and_meaning_match(min_word_match_degree, prefer_num_of_letters, use_meanings=True,
+                                                       continuity_heavy_weight=continuity_heavy_weight,
+                                                       ignore_stop_words=ignore_stop_words)
 
 
 def run_test(match_maker, pairs, func, **kwargs):
@@ -1105,16 +1123,22 @@ if __name__ == '__main__':
             ('words_name', 'multiple_words_name'),
         ]
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=1,
+                 ignore_stop_words=True)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3,
+                 ignore_stop_words=True)
         run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=0.5)
-        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2 / 3,
+        run_test(match_maker, var_names, match_maker.ordered_words_match, min_word_match_degree=2/3,
                  prefer_num_of_letters=True)
 
     if scriptIndex & TEST_ORDERED_SEMANTIC_MATCH:
         var_names = files or [('FirstLightAFire', 'LightTheFireFirst'),
                               ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
                               ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
-        run_test(match_maker, var_names, match_maker.ordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(match_maker, var_names, match_maker.ordered_semantic_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.ordered_semantic_match, min_word_match_degree=2/3,
+                 ignore_stop_words=True)
 
     if scriptIndex & TEST_UNORDERED_MATCH:
         var_names = files or [('A_CD_EF_B', 'A_EF_CD_B'),
@@ -1149,10 +1173,14 @@ if __name__ == '__main__':
             ('EFGHIJKL_ABCDEFGH', 'CDEFGHIJ_GHIJKLMN'),
         ]
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3,
+                 ignore_stop_words=True)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1,
+                 ignore_stop_words=True)
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1,
                  continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2 / 3,
+        run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=2/3,
                  continuity_heavy_weight=True)
         run_test(match_maker, var_names, match_maker.unordered_words_match, min_word_match_degree=1 / 2,
                  continuity_heavy_weight=True)
@@ -1167,18 +1195,22 @@ if __name__ == '__main__':
             ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
             ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2/3)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
+                 ignore_stop_words=True)
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2/3,
+                 ignore_stop_words=True)
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
                  prefer_num_of_letters=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2/3,
                  prefer_num_of_letters=True)
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
                  continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2/3,
                  continuity_heavy_weight=True)
         run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=1,
                  prefer_num_of_letters=True, continuity_heavy_weight=True)
-        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(match_maker, var_names, match_maker.unordered_semantic_match, min_word_match_degree=2/3,
                  prefer_num_of_letters=True, continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNEDIT_MATCH:

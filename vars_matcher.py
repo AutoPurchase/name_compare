@@ -92,18 +92,18 @@ class MatchingBlocks:
     CONTINUOUS_MATCH = 0
     DISCONTINUOUS_MATCH = 1
 
-    def __init__(self, a, b, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH,
+    def __init__(self, name_1, name_2, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH,
                  continuity_heavy_weight=False):
         """
         Args:
-            a: first variable
-            b: second variable
+            name_1: first variable
+            name_2: second variable
             ratio: ratio between the variables
             cont_type: if the match must be continuous or not. Means, if after a match we can cut it from the text
                 and concatenate the text before it to the text after it, or not.
         """
-        self.a = a
-        self.b = b
+        self.name_1 = name_1
+        self.name_2 = name_2
         self.ratio = ratio
         self.matching_type = matching_type
         self.continuity_heavy_weight = continuity_heavy_weight
@@ -151,13 +151,13 @@ class MatchingBlocks:
         Returns:
             Printable data about the relation between the two variables
         """
-        res = f'var_1: {self.a}, var_2: {self.b}\n' \
+        res = f'var_1: {self.name_1}, var_2: {self.name_2}\n' \
               f'Ratio: {round(self.ratio, 3)}\n' \
               'Matches:\n'
 
-        num_of_spaces = len(self.a) + len(self.b) - 2
+        num_of_spaces = len(self.name_1) + len(self.name_2) - 2
         space_weight = ((2 / num_of_spaces) if num_of_spaces > 0 else 0) if not self.continuity_heavy_weight else 1
-        length = (len(self.a) + len(self.b) + space_weight * num_of_spaces)
+        length = (len(self.name_1) + len(self.name_2) + space_weight * num_of_spaces)
 
         for m in self.matches:
             partial_ratio = round(
@@ -168,19 +168,19 @@ class MatchingBlocks:
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
                 res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}, '
                 if self.matching_type != self.WORDS_MATCH:
-                    res += f'partial ratio: {partial_ratio}: \t"{self.a[m.i: m.i + m.k]}"\n'
+                    res += f'partial ratio: {partial_ratio}: \t"{self.name_1[m.i: m.i + m.k]}"\n'
                 else:
                     res += f'local ratio: {local_ratio}, partial ratio: {partial_ratio}:\n' \
-                           f'\t\t{self.a[m.i: m.i + m.k]} vs. \n\t\t{self.b[m.j: m.j + m.k]}\n'
+                           f'\t\t{self.name_1[m.i: m.i + m.k]} vs. \n\t\t{self.name_2[m.j: m.j + m.k]}\n'
             else:
                 res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}, '
 
                 if self.matching_type != self.WORDS_MATCH:
-                    res += f'partial ratio: {partial_ratio}: \t"{"".join([self.a[i] for i in m.i])}"\n'
+                    res += f'partial ratio: {partial_ratio}: \t"{"".join([self.name_1[i] for i in m.i])}"\n'
                 else:
                     res += f'local ratio: {local_ratio}, partial ratio: {partial_ratio}:\n' \
-                           f'\t\t{"".join([self.a[i] for i in m.i])} ' \
-                           f'vs. \n\t\t{"".join([self.b[j] for j in m.j])}\n'
+                           f'\t\t{"".join([self.name_1[i] for i in m.i])} ' \
+                           f'vs. \n\t\t{"".join([self.name_2[j] for j in m.j])}\n'
         return res
 
 
@@ -1097,7 +1097,7 @@ def run_test(matcher, pairs, func, **kwargs):
     for var_1, var_2 in pairs:
         matcher.set_names(var_1, var_2)
         # start_time = datetime.now()
-        print(f'>>> MatchMaker("{var_1}", "{var_2}").{func.__name__}('
+        print(f'>>> NamesMatcher("{var_1}", "{var_2}").{func.__name__}('
               f'{", ".join([k + "=" + str(v if not isinstance(v, float) else round(v, 3)) for k, v in kwargs.items()])}'
               f')\n{func(**kwargs)}')
         # print(f'Test time for {func.__name__}: {datetime.now() - start_time}')
@@ -1169,6 +1169,9 @@ if __name__ == '__main__':
             ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
             ('multiword_name', 'multiple_words_name'),
             ('words_name', 'multiple_words_name'),
+            ('multi_multiplayer', 'multiplayers_layer'),
+            ('multi', 'multiplayers'),
+            ('multiplayer', 'layer'),
         ]
         run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=1)
         run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=1,

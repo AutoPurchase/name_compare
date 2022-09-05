@@ -184,7 +184,7 @@ class MatchingBlocks:
         return res
 
 
-class VarsMatcher:
+class NamesMatcher:
     """
     A class that finds many types of matches between two variables
     """
@@ -296,10 +296,10 @@ class VarsMatcher:
         """
         name = re.sub(f'[^ -~]', self.word_separators[0], name)  # remove all non-visible characters
 
-        if self.numbers_behavior == VarsMatcher.NUMBERS_SEPARATE_WORD:
+        if self.numbers_behavior == NamesMatcher.NUMBERS_SEPARATE_WORD:
             name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separators[0]}\2', name)
             name = re.sub('([0-9])([a-z])', fr'\1{self.word_separators[0]}\2', name)
-        elif self.numbers_behavior == VarsMatcher.NUMBERS_IGNORE:
+        elif self.numbers_behavior == NamesMatcher.NUMBERS_IGNORE:
             name = re.sub('[0-9]', '', name)
 
         if self.support_camel_case:
@@ -347,8 +347,8 @@ class VarsMatcher:
         Returns:
             The distance value
         """
-        return VarsMatcher.levenshtein.distance(self.var_1.norm_name, self.var_2.norm_name) \
-            if not enable_transposition else VarsMatcher.damerau.distance(self.var_1.norm_name, self.var_2.norm_name)
+        return NamesMatcher.levenshtein.distance(self.var_1.norm_name, self.var_2.norm_name) \
+            if not enable_transposition else NamesMatcher.damerau.distance(self.var_1.norm_name, self.var_2.norm_name)
 
     def normalized_edit_distance(self, enable_transposition=False):
         """
@@ -1141,7 +1141,7 @@ if __name__ == '__main__':
 
     files = [(open(files_path[0]).read(), open(files_path[1]).read())] if files_path else None
 
-    vars_matcher = VarsMatcher()
+    vars_matcher = NamesMatcher()
 
     if scriptIndex & TEST_EDIT_DISTANCE:
         var_names = files or [('CA', 'ABC'), ('TotalArraySize', 'ArrayTotalSize')]

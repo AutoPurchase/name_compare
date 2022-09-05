@@ -1,4 +1,4 @@
-# vars_matcher library
+# names_matcher library
 ## Matching and ratio methods for program code names  
 
 All main matching methods are instance methods of the class **VarsMatcher**, while all of them returns an instance of MatchingBlocks contains all the matches according to the algorithm and parameters of the matching method, includes the ratio between the two compared names, the list of the matches between them, etc. 

@@ -222,16 +222,22 @@ class VarsMatcher:
         self.numbers_behavior = numbers_behavior
 
         self.stop_words = stop_words if stop_words is not None else \
-            ['a', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'but', 'by', 'for', 'however', 'if', 'not',
-             'of', 'on', 'or', 'so', 'the', 'there', 'was', 'were', 'whatever', 'whether', 'would']
+            ['a', 'are', 'as', 'at', 'be', 'but', 'by', 'for', 'if',
+             'not', 'of', 'on', 'so', 'the', 'there', 'was', 'were']
 
         self.set_names(name_1, name_2)
 
     def set_name_1(self, name):
         self.var_1 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_2, '?'))
 
+    def get_name_1(self):
+        return self.var_1.name
+
     def set_name_2(self, name):
         self.var_2 = Var(name, (l := self._divide(name)), ''.join(l), self._find_separator(name, self.var_1, '!'))
+
+    def get_name_2(self):
+        return self.var_2.name
 
     def set_names(self, name_1, name_2):
         if name_1 is not None:
@@ -240,21 +246,6 @@ class VarsMatcher:
             self.set_name_2(name_2)
         return self
 
-    def set_case_sensitivity(self, case_sensitivity):
-        self.case_sensitivity = case_sensitivity
-
-    def set_word_separators(self, word_separators):
-        self.word_separators = word_separators
-
-    def set_support_camel_case(self, support_camel_case):
-        self.support_camel_case = support_camel_case
-
-    def set_numbers_behavior(self, numbers_behavior):
-        self.numbers_behavior = numbers_behavior
-
-    def set_stop_words(self, stop_words):
-        self.stop_words = stop_words
-
     def get_norm_names(self):
         return self.var_1.norm_name if self.var_1 is not None else None,\
                self.var_2.norm_name if self.var_2 is not None else None
@@ -262,6 +253,33 @@ class VarsMatcher:
     def get_words(self):
         return self.var_1.words if self.var_1 is not None else None,\
                self.var_2.words if self.var_2 is not None else None
+
+    def set_case_sensitivity(self, case_sensitivity):
+        self.case_sensitivity = case_sensitivity
+
+    def get_case_sensitivity(self):
+        return self.case_sensitivity
+
+    def set_word_separators(self, word_separators):
+        self.word_separators = word_separators
+
+    def get_word_separators(self):
+        return self.word_separators
+
+    def set_support_camel_case(self, support_camel_case):
+        self.support_camel_case = support_camel_case
+
+    def get_support_camel_case(self):
+        return self.support_camel_case
+
+    def set_numbers_behavior(self, numbers_behavior):
+        self.numbers_behavior = numbers_behavior
+
+    def get_numbers_behavior(self):
+        return self.numbers_behavior
+
+    def set_stop_words(self, stop_words):
+        self.stop_words = stop_words
 
     def get_stop_words(self):
         return self.stop_words
@@ -278,15 +296,15 @@ class VarsMatcher:
         """
         name = re.sub(f'[^ -~]', self.word_separators[0], name)  # remove all non-visible characters
 
+        if self.numbers_behavior == VarsMatcher.NUMBERS_SEPARATE_WORD:
+            name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separators[0]}\2', name)
+            name = re.sub('([0-9])([a-z])', fr'\1{self.word_separators[0]}\2', name)
+        elif self.numbers_behavior == VarsMatcher.NUMBERS_IGNORE:
+            name = re.sub('[0-9]', '', name)
+
         if self.support_camel_case:
             name = re.sub('(.)([A-Z][a-z]+)', fr'\1{self.word_separators[0]}\2', name)
             name = re.sub('([a-z0-9])([A-Z])', fr'\1{self.word_separators[0]}\2', name)
-
-            if self.numbers_behavior == VarsMatcher.NUMBERS_SEPARATE_WORD:
-                name = re.sub('([A-Za-z])([0-9])', fr'\1{self.word_separators[0]}\2', name)
-                name = re.sub('([0-9])([a-z])', fr'\1{self.word_separators[0]}\2', name)
-            elif self.numbers_behavior == VarsMatcher.NUMBERS_IGNORE:
-                name = re.sub('[0-9]', '', name)
 
         if not self.case_sensitivity:
             name = name.lower()

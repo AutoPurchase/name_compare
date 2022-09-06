@@ -12,7 +12,27 @@ The ratio's formula was described in the project document (MM: TODO).
 
 1. install namecompare library (by running "**pip install namecompare**").
 2. In the head of the python file type "**import names_matcher**".
-3. Generate **names_matcher.NamesMatcher** object, set names to compare, and run comparison function (as detailed below)...
+3. Generate **names_matcher.NamesMatcher** object, set names to compare, and run comparison function (as detailed below)... 
+ 
+
+Example:
+    
+    import names_matcher
+    print(names_matcher.NamesMatcher('FirstLightAFire', 'LightTheFireFirst').ordered_words_match())
+
+Output:
+
+    var_1: ['first', 'light', 'a', 'fire'], var_2: ['light', 'the', 'fire', 'first']
+    Ratio: 0.4
+    Matches:
+	    var_1[1:2], var_2[0:1], length: 1, local ratio: 1.0, partial ratio: 0.2:
+		    ['light'] vs. 
+		    ['light']
+	    var_1[3:4], var_2[2:3], length: 1, local ratio: 1.0, partial ratio: 0.2:
+		    ['fire'] vs. 
+		    ['fire']
+
+
 
 
 ## Classes
@@ -37,7 +57,8 @@ A class contains the data about one match:
 
 ### *class* MatchingBlocks
 
-A class contains the data about all the matches:
+A class contains the data about all the matches.
+This class has a converter to string that prints readable summary about its matches.
 
   #### Constants:
     LETTERS_MATCH = 0

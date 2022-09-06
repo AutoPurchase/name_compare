@@ -99,58 +99,58 @@ This is the main library's class, that calculates the matches. It contains:
 
 ## Methods
 
-### *NamesMatcher*.set_name_1(name)
+### names_matcher.NamesMatcher.*set_name_1*(name)
 Set the first name to be compared.
 
-### *NamesMatcher*.get_name_1()
+### names_matcher.NamesMatcher.*get_name_1*()
 Get the first name to be compared.
 
-### *NamesMatcher*.set_name_2(name)
+### names_matcher.NamesMatcher.*set_name_2*(name)
 Set the second name to be compared.
 
-### *NamesMatcher*.get_name_2()
+### names_matcher.NamesMatcher.*get_name_2*()
 Get the second name to be compared.
 
-### *NamesMatcher*.set_names(name_1, name_2)
+### names_matcher.NamesMatcher.*set_names*(name_1, name_2)
 Set the both names to be compared.
 
-### *NamesMatcher*.get_norm_names()
+### names_matcher.NamesMatcher.*get_norm_names*()
 Get the both name after normalization (removing spaces, replacing to small letters - if *case_sensitivity*==False, etc.).
 
-### *NamesMatcher*.get_words()
+### names_matcher.NamesMatcher.*get_words*()
 Get the both name after dividing to words (depends on *word_separators* value).
 
-### *NamesMatcher*.set_case_sensitivity(case_sensitivity)
+### names_matcher.NamesMatcher.*set_case_sensitivity*(case_sensitivity)
 Set *case_sensitivity* value. 
 
-### *NamesMatcher*.get_case_sensitivity()
+### names_matcher.NamesMatcher.*get_case_sensitivity*()
 Get *case_sensitivity* value.
 
-### *NamesMatcher*.set_word_separators(word_separators)
+### names_matcher.NamesMatcher.*set_word_separators*(word_separators)
 Set *word_separators* value.
 
-### *NamesMatcher*.get_word_separators()
+### names_matcher.NamesMatcher.*get_word_separators*()
 Get *word_separators* value.
 
-### *NamesMatcher*.set_support_camel_case(support_camel_case)
+### names_matcher.NamesMatcher.*set_support_camel_case*(support_camel_case)
 Set *support_camel_case* value.
 
-### *NamesMatcher*.get_support_camel_case()
+### names_matcher.NamesMatcher.*get_support_camel_case*()
 Get *support_camel_case* value.
 
-### *NamesMatcher*.set_numbers_behavior(numbers_behavior)
+### names_matcher.NamesMatcher.*set_numbers_behavior*(numbers_behavior)
 Set *numbers_behavior* value.
 
-### *NamesMatcher*.get_numbers_behavior()
+### names_matcher.NamesMatcher.*get_numbers_behavior*()
 Get *numbers_behavior* value.
 
-### *NamesMatcher*.set_stop_words(stop_words)
+### names_matcher.NamesMatcher.*set_stop_words*(stop_words)
 Set *stop_words* value.
 
-### *NamesMatcher*.get_stop_words(stop_words)
+### names_matcher.NamesMatcher.*get_stop_words*(stop_words)
 Get *stop_words* value.
 
-### *NamesMatcher*.edit_distance(enable_transposition=False)
+### names_matcher.NamesMatcher.*edit_distance*(enable_transposition=False)
 A function that uses *strsimpy* library to calculate the Edit Distance between *NamesMatcher*.name_1 and *NamesMatcher*.name_2. 
 
 If *enable_transposition*==False, it uses Levenshtein distance, else it uses Damerau distance.
@@ -160,7 +160,7 @@ If *enable_transposition*==False, it uses Levenshtein distance, else it uses Dam
 Integer value.
 
 
-### *NamesMatcher*.normalized_edit_distance(enable_transposition=False)
+### names_matcher.NamesMatcher.*normalized_edit_distance*(enable_transposition=False)
 A function that uses *strsimpy* library to calculate the Edit **Distance** between *NamesMatcher*.name_1 and *NamesMatcher*.name_2, and normalizes the result to be in the range [0,1] (by dividing the distance by number of letters in the longest name).
 
 If *enable_transposition*==False, it uses Levenshtein distance, else it uses Damerau distance.
@@ -170,7 +170,7 @@ If *enable_transposition*==False, it uses Levenshtein distance, else it uses Dam
 Float value.
 
 
-### *NamesMatcher*.difflib_match_ratio()
+### names_matcher.NamesMatcher.*difflib_match_ratio*()
 A function that uses *difflib.SequenceMatcher* to calculate the **ratio** between *NamesMatcher*.name_1 and *NamesMatcher*.name_2.
 
 #### Return value:
@@ -178,7 +178,7 @@ A function that uses *difflib.SequenceMatcher* to calculate the **ratio** betwee
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.ordered_match(min_len=2, continuity_heavy_weight=False)
+### names_matcher.NamesMatcher.*ordered_match*(min_len=2, continuity_heavy_weight=False)
 
   A method that works like Sequence Matcher algorithm - finding at first the longest match and continue recursively on both sides of the match, but every time that there are more than one match with the same length - this method finds the longest matches **that maximize the ratio between the variables**.
   
@@ -197,7 +197,7 @@ Minimum length of letters that will be related as a match.
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.unordered_match(min_len=2, continuity_heavy_weight=False)
+### names_matcher.NamesMatcher.*unordered_match*(min_len=2, continuity_heavy_weight=False)
 
 A method that searches for matches between the variables, but enables also “cross matches” after finding one match, i.e. after finding one of the longest match, every match between the remained letters will be legal.
 
@@ -212,7 +212,7 @@ A method that searches for matches between the variables, but enables also “cr
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.unedit_match(min_len=2, continuity_heavy_weight=False)
+### names_matcher.NamesMatcher.*unedit_match*(min_len=2, continuity_heavy_weight=False)
 
 A method (that may be useful in curious cases) that after each match removes it from the variables, and concatenating both sides of it. (As a result, letters on the left side with those from right side of the match could build a new word).
 
@@ -227,7 +227,7 @@ A method (that may be useful in curious cases) that after each match removes it 
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.ordered_words_match(min_word_match_degree=2/3, prefer_num_of_letters=False, continuity_heavy_weight=False, ignore_stop_words=False)
+### names_matcher.NamesMatcher.*ordered_words_match*(min_word_match_degree=2/3, prefer_num_of_letters=False, continuity_heavy_weight=False, ignore_stop_words=False)
 
 A method that finds the matches that maximize the ratio between the variables words, while requires - after finding a match with maximal number of letters, the searching for other matches will be done separately on the left sides and the right sides of the match.
 
@@ -248,7 +248,7 @@ Note: this method uses dynamic programming for calculate that. As a result, the 
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.ordered_semantic_match(min_word_match_degree=2/3, prefer_num_of_letters=False, continuity_heavy_weight=False, ignore_stop_words=False)
+### names_matcher.NamesMatcher.*ordered_semantic_match*(min_word_match_degree=2/3, prefer_num_of_letters=False, continuity_heavy_weight=False, ignore_stop_words=False)
 
 A method that finds the matches that maximize the ratio between the variables words, while requires - after finding a match with maximal number of letters, the searching for other matches will be done separately on the left sides and the right sides of the match.
 
@@ -269,7 +269,7 @@ Note: this method uses dynamic programming for calculate that. As a result, the 
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.unordered_words_match(min_word_match_degree=2/3, prefer_num_of_letters=False continuity_heavy_weight=False, ignore_stop_words=False)
+### names_matcher.NamesMatcher.*unordered_words_match*(min_word_match_degree=2/3, prefer_num_of_letters=False continuity_heavy_weight=False, ignore_stop_words=False)
 
 A method that searches for matches between the names in a variables, and enables also “cross matches” after finding one match, i.e. after finding one of the longest match, every match between the remained letters will be legal. In addition, it enables not perfect matching between words - depend on a parameter the user set.
 
@@ -288,7 +288,7 @@ A method that searches for matches between the names in a variables, and enables
 *MatchingBlocks* object.
 
 
-### *NamesMatcher*.unordered_semantic_match(min_word_match_degree=2/3, prefer_num_of_letters=False continuity_heavy_weight=False, ignore_stop_words=False)
+### names_matcher.NamesMatcher.*unordered_semantic_match*(min_word_match_degree=2/3, prefer_num_of_letters=False continuity_heavy_weight=False, ignore_stop_words=False)
 
 A method that searches for matches between the names in a variables, and enables also “cross matches” after finding one match, i.e. after finding one of the longest match, every match between the remained letters will be legal. In addition, it enables not perfect matching between words - depend on a parameter the user set, and enable match between synonyms and singular/plural words.
 

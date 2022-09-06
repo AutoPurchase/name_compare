@@ -102,7 +102,7 @@ This is the main library's class, that calculates the matches. It contains:
 ### *NamesMatcher*.set_name_1(name)
 Set the first name to be compared.
 
-### *NamesMatcher*.def get_name_1()
+### *NamesMatcher*.get_name_1()
 Get the first name to be compared.
 
 ### *NamesMatcher*.set_name_2(name)

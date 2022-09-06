@@ -7,6 +7,14 @@ To facilitate this we developed a library of comparison functions specifically t
 
 The ratio's formula was described in the project document (MM: TODO). 
 
+
+## User Manual
+
+1. install namecompare library (by running "**pip install namecompare**").
+2. In the head of the python file type "**import names_matcher**".
+3. Generate **names_matcher.NamesMatcher** object, set names to compare, and run comparison function (as detailed below)...
+
+
 ## Classes
 
 ### *class* *Var*

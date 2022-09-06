@@ -154,7 +154,7 @@ class MatchingBlocks:
         Returns:
             Printable data about the relation between the two variables
         """
-        res = f'var_1: {self.name_1}, var_2: {self.name_2}\n' \
+        res = f'name_1: {self.name_1}, name_2: {self.name_2}\n' \
               f'Ratio: {round(self.ratio, 3)}\n' \
               'Matches:\n'
 
@@ -171,7 +171,7 @@ class MatchingBlocks:
                     2 * ((m.k if self.matching_type == self.LETTERS_MATCH else m.r) + (
                                 m.k - 1) * space_weight) / length, 3)
 
-                res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}, '
+                res += f'\tname_1[{m.i}:{m.i + m.k}], name_2[{m.j}:{m.j + m.k}], length: {m.k}, '
 
                 if self.matching_type != self.WORDS_MATCH:
                     res += f'partial ratio: {partial_ratio}: \t"{self.name_1[m.i: m.i + m.k]}"\n'
@@ -183,7 +183,7 @@ class MatchingBlocks:
                     2 * ((len(m.i) if self.matching_type == self.LETTERS_MATCH else m.r) + (
                                 len(m.i) - 1) * space_weight) / length, 3)
 
-                res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}, '
+                res += f'\tname_1{m.i}, name_2{m.j}, length: {len(m.i)}, '
 
                 if self.matching_type != self.WORDS_MATCH:
                     res += f'partial ratio: {partial_ratio}: \t"{"".join([self.name_1[i] for i in m.i])}"\n'

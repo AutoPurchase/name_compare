@@ -22,13 +22,13 @@ Example:
 
 Output:
 
-    var_1: ['first', 'light', 'a', 'fire'], var_2: ['light', 'the', 'fire', 'first']
+    name_1: ['first', 'light', 'a', 'fire'], name_2: ['light', 'the', 'fire', 'first']
     Ratio: 0.4
     Matches:
-	    var_1[1:2], var_2[0:1], length: 1, local ratio: 1.0, partial ratio: 0.2:
+	    name_1[1:2], name_2[0:1], length: 1, local ratio: 1.0, partial ratio: 0.2:
 		    ['light'] vs. 
 		    ['light']
-	    var_1[3:4], var_2[2:3], length: 1, local ratio: 1.0, partial ratio: 0.2:
+	    name_1[3:4], name_2[2:3], length: 1, local ratio: 1.0, partial ratio: 0.2:
 		    ['fire'] vs. 
 		    ['fire']
 

@@ -60,6 +60,8 @@ class OneMatch:
                 contains a list of all the matching indices)
             j: like i, but in the second var
             k: length of the match (unused in discontinuous matches)
+            l: when the comparison based on words, this variable contains number of letters in these words
+            r: when the comparison based on words, this variable contains the ratio of the match
         """
         self.i = i
         self.j = j
@@ -84,7 +86,7 @@ class SubMatch:
 
 class MatchingBlocks:
     """
-    saves all the data about matches between two variables.
+    contains all the data about matches between two variables.
     """
     LETTERS_MATCH = 0
     WORDS_MATCH = 1
@@ -92,13 +94,15 @@ class MatchingBlocks:
     CONTINUOUS_MATCH = 0
     DISCONTINUOUS_MATCH = 1
 
-    def __init__(self, name_1, name_2, matching_type, ratio, matches=None, cont_type=CONTINUOUS_MATCH,
+    def __init__(self, name_1, name_2, matching_type, ratio, matches, cont_type=CONTINUOUS_MATCH,
                  continuity_heavy_weight=False):
         """
         Args:
             name_1: first variable
             name_2: second variable
+            matching_type: matching letters or words
             ratio: ratio between the variables
+            matches: list of
             cont_type: if the match must be continuous or not. Means, if after a match we can cut it from the text
                 and concatenate the text before it to the text after it, or not.
         """
@@ -106,13 +110,12 @@ class MatchingBlocks:
         self.name_2 = name_2
         self.ratio = ratio
         self.matching_type = matching_type
+        self.cont_type = cont_type
         self.continuity_heavy_weight = continuity_heavy_weight
 
         self.matches = []
         if matches is not None:
             self.set_matching_blocks(matches)
-
-        self.cont_type = cont_type
 
     def set_matching_blocks(self, matching_blocks):
         for m in matching_blocks:
@@ -160,19 +163,26 @@ class MatchingBlocks:
         length = (len(self.name_1) + len(self.name_2) + space_weight * num_of_spaces)
 
         for m in self.matches:
-            partial_ratio = round(
-                2 * ((m.k if self.matching_type == self.LETTERS_MATCH else m.r) + (m.k - 1) * space_weight) / length, 3)
             if self.matching_type == self.WORDS_MATCH:
                 local_ratio = round(2 * (m.r + (m.k - 1) * space_weight) / (2 * (m.k + (m.k - 1) * space_weight)), 3)
 
             if self.cont_type == MatchingBlocks.CONTINUOUS_MATCH:
+                partial_ratio = round(
+                    2 * ((m.k if self.matching_type == self.LETTERS_MATCH else m.r) + (
+                                m.k - 1) * space_weight) / length, 3)
+
                 res += f'\tvar_1[{m.i}:{m.i + m.k}], var_2[{m.j}:{m.j + m.k}], length: {m.k}, '
+
                 if self.matching_type != self.WORDS_MATCH:
                     res += f'partial ratio: {partial_ratio}: \t"{self.name_1[m.i: m.i + m.k]}"\n'
                 else:
                     res += f'local ratio: {local_ratio}, partial ratio: {partial_ratio}:\n' \
                            f'\t\t{self.name_1[m.i: m.i + m.k]} vs. \n\t\t{self.name_2[m.j: m.j + m.k]}\n'
             else:
+                partial_ratio = round(
+                    2 * ((len(m.i) if self.matching_type == self.LETTERS_MATCH else m.r) + (
+                                len(m.i) - 1) * space_weight) / length, 3)
+
                 res += f'\tvar_1{m.i}, var_2{m.j}, length: {len(m.i)}, '
 
                 if self.matching_type != self.WORDS_MATCH:

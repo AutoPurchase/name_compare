@@ -37,7 +37,7 @@ Output:
 
 ## Classes
 
-### *class* *Var*
+### class *names_matcher.Var*
 
 A class contains all the needed data about a variable:
 - **name**: its original name (string).
@@ -45,7 +45,7 @@ A class contains all the needed data about a variable:
 - **norm_name**: variable's name after normalization.
 - **separator**: a special character that doesn't exist in both variables, for internal use while searching for a match.
 
-### *class* OneMatch
+### class *names_matcher.OneMatch*
 
 A class contains the data about one match:
 
@@ -55,7 +55,7 @@ A class contains the data about one match:
 - **l**: when the comparison based on words, this variable contains number of letters in these words.
 - **r**: when the comparison based on words, this variable contains the ratio of the match.
 
-### *class* MatchingBlocks
+### class *names_matcher.MatchingBlocks*
 
 A class contains the data about all the matches.
 This class has a converter to string that prints readable summary about its matches.
@@ -74,7 +74,7 @@ This class has a converter to string that prints readable summary about its matc
 - **cont_type**: *CONTINUOUS_MATCH* for matching only between continuous letters (so if minimum match is 2 letters - two uncontinuous letters will never be related as a one match), and DISCONTINUOUS_MATCH for *unedit_match()* function, that after matching a sub-string, its two sides attached together (so one letter from left side and one from right side will be related as two continuous letters).
 - **continuity_heavy_weight**: the weight to let to continuity. False means relating to the "glue" between all the letters or words as one component, while True means relating each "glue" as one element. This "glue" means: for letting to match of some continuous elements heavy weight than the same number of single elements, we give a weight also to the "space" between letters, that will be received only when the elements of both sides of this space matches in one match. The weight of that is set by this variable.     
 
-### *class* NamesMatcher
+### class *names_matcher.NamesMatcher*
 
 #### Constants:
     NUMBERS_SEPARATE_WORD = 0

@@ -1151,17 +1151,17 @@ if __name__ == '__main__':
 
     files = [(open(files_path[0]).read(), open(files_path[1]).read())] if files_path else None
 
-    vars_matcher = NamesMatcher()
+    names_matcher = NamesMatcher()
 
     if scriptIndex & TEST_EDIT_DISTANCE:
         var_names = files or [('CA', 'ABC'), ('TotalArraySize', 'ArrayTotalSize')]
-        run_test(vars_matcher, var_names, vars_matcher.edit_distance)
-        run_test(vars_matcher, var_names, vars_matcher.edit_distance, enable_transposition=True)
+        run_test(names_matcher, var_names, names_matcher.edit_distance)
+        run_test(names_matcher, var_names, names_matcher.edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_NORMALIZED_EDIT_DISTANCE:
         var_names = files or [('CA', 'ABC')]
-        run_test(vars_matcher, var_names, vars_matcher.normalized_edit_distance)
-        run_test(vars_matcher, var_names, vars_matcher.normalized_edit_distance, enable_transposition=True)
+        run_test(names_matcher, var_names, names_matcher.normalized_edit_distance)
+        run_test(names_matcher, var_names, names_matcher.normalized_edit_distance, enable_transposition=True)
 
     if scriptIndex & TEST_DIFFLIB_MATCHER_RATIO:
         var_names = files or [('AB_CD_EF', 'EF_CD_AB'),
@@ -1170,7 +1170,7 @@ if __name__ == '__main__':
                               ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
                               ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
                               ('DigitPowerMultiplying', 'MultiplyDigitExponent')]
-        run_test(vars_matcher, var_names, vars_matcher.difflib_match_ratio)
+        run_test(names_matcher, var_names, names_matcher.difflib_match_ratio)
 
     if scriptIndex & TEST_ORDERED_MATCH:
         var_names = files or [
@@ -1182,8 +1182,8 @@ if __name__ == '__main__':
             ('MultiplyDigitExponent', 'DigitsPowerMultiplying'),
             ('multiword_name', 'multiple_words_name'),
         ]
-        run_test(vars_matcher, var_names, vars_matcher.ordered_match, min_len=1)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_match, min_len=2)
+        run_test(names_matcher, var_names, names_matcher.ordered_match, min_len=1)
+        run_test(names_matcher, var_names, names_matcher.ordered_match, min_len=2)
 
     if scriptIndex & TEST_ORDERED_WORD_MATCH:
         var_names = [
@@ -1201,22 +1201,22 @@ if __name__ == '__main__':
             ('multi', 'multiplayers'),
             ('multiplayer', 'layer'),
         ]
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=1)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=1)
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=1,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=2 / 3)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=2 / 3)
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=2 / 3,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=0.5)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_words_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=0.5)
+        run_test(names_matcher, var_names, names_matcher.ordered_words_match, min_word_match_degree=2 / 3,
                  prefer_num_of_letters=True)
 
     if scriptIndex & TEST_ORDERED_SEMANTIC_MATCH:
         var_names = files or [('FirstLightAFire', 'LightTheFireFirst'),
                               ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
                               ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
-        run_test(vars_matcher, var_names, vars_matcher.ordered_semantic_match, min_word_match_degree=2 / 3)
-        run_test(vars_matcher, var_names, vars_matcher.ordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.ordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(names_matcher, var_names, names_matcher.ordered_semantic_match, min_word_match_degree=2 / 3,
                  ignore_stop_words=True)
 
     if scriptIndex & TEST_UNORDERED_MATCH:
@@ -1226,10 +1226,10 @@ if __name__ == '__main__':
                               ('AFireLightFlickersAtFirst', 'FirstLightAFire'),
                               ('ABCDEFGHIJKLMNOP', 'PONMLKJIHGFEDCBA'), ('ABCDEFGHIJKLMNOP', 'ONLPBCJIHGFKAEDM'),
                               ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
-        run_test(vars_matcher, var_names, vars_matcher.unordered_match, min_len=1)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_match, min_len=1, continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_match, min_len=2)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_match, min_len=2, continuity_heavy_weight=True)
+        run_test(names_matcher, var_names, names_matcher.unordered_match, min_len=1)
+        run_test(names_matcher, var_names, names_matcher.unordered_match, min_len=1, continuity_heavy_weight=True)
+        run_test(names_matcher, var_names, names_matcher.unordered_match, min_len=2)
+        run_test(names_matcher, var_names, names_matcher.unordered_match, min_len=2, continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNORDERED_WORDS_MATCH:
         var_names = files or [
@@ -1251,17 +1251,17 @@ if __name__ == '__main__':
             ('bcdefghijkl_efghijkl', 'abcdefghijk_abcdefgh'),
             ('EFGHIJKL_ABCDEFGH', 'CDEFGHIJ_GHIJKLMN'),
         ]
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=2 / 3)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=2 / 3)
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=2 / 3,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=1)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=1)
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=1,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=1,
                  continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=2 / 3,
                  continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_words_match, min_word_match_degree=1 / 2,
+        run_test(names_matcher, var_names, names_matcher.unordered_words_match, min_word_match_degree=1 / 2,
                  continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNORDERED_SEMANTIC_MATCH:
@@ -1273,25 +1273,25 @@ if __name__ == '__main__':
             ('TheChildArrivesToTheClassroom', 'TheKidGetToBallroom'),
             ('TheChildArrivesToTheClassroom', 'TheKidGetToTheSchoolroom'),
             ('MultiplyDigitExponent', 'DigitsPowerMultiplying')]
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=1)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=2 / 3)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=1)
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=2 / 3)
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=1,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
                  ignore_stop_words=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=1,
                  prefer_num_of_letters=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
                  prefer_num_of_letters=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=1,
                  continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
                  continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=1,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=1,
                  prefer_num_of_letters=True, continuity_heavy_weight=True)
-        run_test(vars_matcher, var_names, vars_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
+        run_test(names_matcher, var_names, names_matcher.unordered_semantic_match, min_word_match_degree=2 / 3,
                  prefer_num_of_letters=True, continuity_heavy_weight=True)
 
     if scriptIndex & TEST_UNEDIT_MATCH:
         var_names = files or [('A_CD_EF_B', 'A_EF_CD_B')]
-        run_test(vars_matcher, var_names, vars_matcher.unedit_match, min_len=2)
+        run_test(names_matcher, var_names, names_matcher.unedit_match, min_len=2)

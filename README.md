@@ -5,7 +5,7 @@ Program code contains functions, variables, and data structures that are represe
 
 To facilitate this we developed a library of comparison functions specifically targeted to comparing names in code. The different functions calculate the similarity between names in different ways, so a researcher can choose the one appropriate for his specific needs. All of them share an attempt to reflect human perceptions of similarity, at the possible expense of lexical matching.
 
-The ratio's formula was described in the project document (MM: TODO). 
+The ratio's formula was described in the project document (http://arxiv.org/abs/2209.03198). 
 
 
 ## User Manual
